@@ -1,0 +1,375 @@
+#!/bin/bash
+
+set -o nounset
+
+#DEBUGLOG=true
+#export LOGDEST=stdout
+
+for function in /home/gary/functions/*.sh; do . ${function}; done
+
+# always log to stdout or stderr
+#log()     { echo "$@" ; }
+#log_err() { >&2 echo "$@" ; }
+#log_output() { >&2 cat - ; }
+
+# default values
+blackoutStartTime="183000"
+blackoutEndTime="235900"
+currentTime=
+trashDeleteDays=7
+dryrun=
+inputSuffixes=".mkv .ts .avi"
+outputSuffix=.mp4
+convertedSuffix=.original
+result=
+declare -i exitCode=0
+reniceValue=2
+findArgs=
+pruneList=
+targ=
+humax=
+tvdb=
+label="Universal TV"
+topDir="Plex Versions"
+outputDir="${topDir}/${label}"
+outputDir=
+humaxDir="/nfs/humax"
+humaxBin="${humaxDir}"/'[Deleted Items]'
+localBin=.Trash
+
+# Locations
+rm=rm
+mv=mv
+mkdir=mkdir
+rmdir=rmdir
+touch=touch
+sed=sed
+progDir=/usr/src/sickbeard_mp4_automator
+transcode="/usr/bin/python3 ${progDir}/manual.py"
+transcodeArgs="--config=${progDir}/plex.ini --auto"
+
+# Directories to scan
+prune=(
+.grab
+.TV
+.InProgress
+"0 Films"
+"\[Deleted Items\]"
+)
+
+# Directories to scan
+dirs=(
+#"/srv/media/Recorded/Films"
+#"/srv/media/Recorded/TV"
+#"/srv/media/Recorded/Videos"
+"/srv/media/Movies"
+"/srv/media/TV Shows"
+)
+
+SafeDelete()
+{
+  local topdir="${1}"; file="${2}";
+  local suffix= ; local base= ; local dir= ; local subdir= ; local target= ;
+  log_debug "SafeDelete($1,$2}"
+
+  dir=$(dirname "${file}")
+  suffix=."${file##*.}"
+  filename=$(basename "${file}" "${suffix}")
+  base="${file%%${suffix}}"
+  if [[ ${file} =~ ^${humaxDir} ]]
+  then
+    subdir="${dir#${humaxDir}}"
+    target="${humaxBin}${subdir}"
+    log_debug "SafeDelete file=${filename}, base=${base}, target=${target}, subdir=${subdir}"
+    ${mkdir} -p "${target}"
+
+    log_debug ${mv} "${base}".{hmt,ts,thm,nts} "${target}"
+    ${mv} "${base}".{hmt,ts,thm,nts} "${target}" &&
+      ${touch} "${target}/${filename}".{hmt,ts,thm,nts}
+  else
+    subdir="${dir#${topdir}}"
+    target="${topdir}/${localBin}${subdir}"
+    log_debug "SafeDelete file=${filename}, base=${base}, target=${target}, subdir=${subdir}"
+    ${mkdir} -p "${target}"
+    log_debug ${mv} "${file}" "${target}"
+    ${mv} "${file}" "${target}" && 
+      ${touch} "${target}/${filename}${suffix}"
+  fi
+}
+
+CheckState()
+{
+  local input=
+  local inputdir=
+  local output=
+  local outputdir=
+  local sedscript=
+  local state="${1}"
+  local topdir=$(dirname "${1}")
+
+  log_debug "Checkstate($1}"
+
+  while IFS='|' read output input 
+  do
+    log_debug "input=${input}, output=${output}"
+    inputdir=$(dirname "${input}")
+    outputdir=$(dirname "${output}")
+    log_debug "inputdir=${inputdir}, outputdir=${outputdir}"
+    if [[ -f "${input}" && -f "${output}" ]]
+    then
+      continue
+    fi
+    log_debug "One or other file does not exist"
+    if [[ -f "${output}" && ! -f "${input}" ]]
+    then
+      # so the output file exists but not the input, so delete the output file 
+      # note only transcoded files are in the state file
+      # we could test here if the input file has got a '.oriignal' suffix
+      log_notice "Output file exists but not input, delete output: $output"
+      [[ "${inputdir}" != "${outputdir}" ]] && SafeDelete "${topdir}" "${output}"
+    fi
+    if [[ -f "${input}" && ! -f "${output}" ]]
+    then
+      # so the input file exists but not the output, so delete the input file 
+      # note only transcoded files are in the state file
+      # otherwise delete the output file
+      log_notice "Input file exists but not output, delete input: $input"
+      SafeDelete "${topdir}" "${input}"
+    fi
+    # sed comand to delete the item from the state file
+    sedscript+="\?$input? d; "
+  done < "${state}"
+
+  [[ "${sedscript}" ]] && ${sed} -e "${sedscript}" -i "${state}"
+
+  # Finally clean the directories
+  log_debug Trash files to delete $(find "${topdir}/${localBin}" -type f -mtime +${trashDeleteDays} -print)
+  find "${topdir}/${localBin}" -type f -mtime +${trashDeleteDays} -exec ${rm} {} \;
+  log_debug ${rmdir} "${topdir}/${localBin}/"*
+  ${rmdir} "${topdir}/${localBin}/"* 2>/dev/null
+  log_debug ${rmdir} ${topdir}/*
+  ${rmdir} "${topdir}"/* 2>/dev/null
+}
+
+Usage()
+{
+  cat <<EOF >&2
+$0: <flags> [directories to process]
+Allowed flags are:
+--humax						Special processing for humax
+-l|--log=<CRITIAL|ERROR|WARN|NOTIFY|INFO|DEBUG> default WARN
+-m|--output=<target directory>			location for processed recordings (and original)
+-n|--nice 					renice process to $reniceValue
+-s|--dry-run					print commands as if they would be executed
+-t|--tvdb					include files with .tvdbseriesid
+--help     					this message
+EOF
+}
+
+params="$(getopt -o l:o:nrst --long dry-run,help,humax,log:,output:,nice:,tvdb --name "$0" -- "$@")"
+eval set -- "$params"
+
+while true
+do
+  case "$1" in
+    --humax)        humax=humax; shift;;
+    -l|--log)       check=$(enumLogLevel $2); LOGLEVEL=$2; shift 2;;
+    -o|--output)    outputDir=$2; shift 2;;
+    -n|--nice)      reniceValue=$; shift 2;;
+    -s|--dry-run)   dryrun=dryrun; shift;;
+    -t|--tvdb)      tvdb=tvdb; shift;;
+    --help)         Usage; exit 0;;
+    --)             shift; break ;;
+    *)              log_critical "Not implemented: $1" ; Usage; exit 1;;
+  esac
+done
+
+if [[ $# != 0 ]] 
+then
+  log_debug "Directories on command line, clearing defaults"
+  dirs=()
+  while [[ $# != 0 ]]
+  do
+    log_debug "Adding $1 for processing"
+    dirs+=("$1")
+    shift
+  done
+fi
+
+# check if there is another instance running
+if pidof -o $$ -x "$(basename $0)" > /dev/null
+then
+  log_info "$0 is already running, exiting"
+  exit 0
+fi
+
+if [[ "${dryrun}" ]]
+then
+  rm="echo ${rm}"
+  mv="echo ${mv}"
+  mkdir="echo ${mkdir}"
+  rmdir="echo ${rmdir}"
+  touch="echo ${touch}"
+  transcode="echo ${transcode}"
+  #transcodeArgs="--dry-run ${transcodeArgs}"
+fi
+#transcodeArgs="--log=$LOGLEVEL ${transcodeArgs}"
+
+log_debug "renice -n $reniceValue $$"
+[[ $reniceValue != 0 ]] && renice -n $reniceValue $$ 2>&1 | log_output
+
+for p in  "${prune[@]}" 
+do
+  [[ $pruneList ]] && pruneList="${pruneList} -o "
+  pruneList="${pruneList} -name \""${p}"\" -prune"
+done
+for inputSuffix in ${inputSuffixes}
+do
+  [[ $findArgs ]] && findArgs="${findArgs} -o "
+  findArgs="$findArgs -name '*${inputSuffix}'"
+done
+
+# start processing each directory
+for d in  "${dirs[@]}"
+do
+  log_info Searching dir: $d
+ 
+  if [[ ! -d "$d" ]]
+  then
+    log_warn dir $d does not exist 
+    continue
+  fi
+  if [[ -f "${d}"/.ignore ]]
+  then
+    log_info ".ignore present, ignoring $d"
+    continue
+  fi
+
+  [[ "${outputDir}" ]] && stateFile="${outputDir}"/.state || stateFile="${d}"/.state
+  CheckState "${stateFile}"
+  
+  # find all files that match the suffix
+  #eval find -L \"$d\"/* \\\( -name \"${topDir}\" -prune -o "${pruneList}" \\\) -o \\\( ${findArgs} \\\) -mmin +10 -print |
+  eval find -L \"$d\"/* \\\( -name \"${topDir}\" -prune -o "${pruneList}" \\\) -o \\\( ${findArgs} \\\) -mmin +10 -print 2>/dev/null |
+    while read f
+    do
+      currentTime=$(date +"%H%M%S")
+      log_debug "currentTime: $currentTime, blackoutStartTime: $blackoutStartTime, blackoutEndTime: $blackoutEndTime"
+      if [[ ( "$currentTime" > "$blackoutStartTime" && "$currentTime" < "$blackoutEndTime" ) ]]
+      then
+	log_info "Not processing $f, time: $currentTime, blackoutStartTime: $blackoutStartTime, blackoutEndTime: $blackoutEndTime"
+	break
+      fi
+      log_debug Processing file: "${f}"
+      dir=$(dirname "${f}")
+      # any reason to ignore this file or directory
+      if [[ ! ${tvdb} && -f "${dir}"/.tvdbseriesid ]] 
+      then
+        log_info ".tvdbseriesid present, ignoring $dir" 
+	continue
+      fi
+      if [[ -f "${dir}"/.ignore ]]
+      then
+	log_info ".ignore present, ignoring $dir" 
+	continue
+      fi
+
+      input=${f}
+      suffix=."${input##*.}"
+      name=$(basename "${input}" "${suffix}")
+      log_debug "Got name: ${name}, suffix: $suffix"
+      if [[ "${humax}" ]]
+      then
+	log_debug "Checking "${dir}/${name}".hmt"
+        if $(hmt2k "${dir}/${name}".hmt 2>/dev/null | grep "Recording is encrypted on disk" > /dev/null)
+	then
+	  log_warn "${f} is still encrypted, ignoring"
+	  continue
+	else
+	  log_debug "${f} is decrypted"
+        fi
+      fi
+  
+      if [[ ${outputDir} =~ ^/ ]]
+      then
+	[[ ${humax} ]] && outputPath="${outputDir}${dir#${d}}" ||  outputPath="${outputDir}"
+      else
+	outputPath="$dir/${outputDir}"
+      fi
+      output="$outputPath/$name${outputSuffix}"
+      log_debug "output is '${output}'"
+
+      if [[ -f "${output}" ]] 
+      then
+	log_info "${output} already exists, not converting"
+	log_debug input $(ls -l "${output}")
+	log_debug output $(ls -l "${output}")
+      else
+        log_notice "Transcoding ${input} to  ${outputPath}"
+        log_debug ${transcode} --moveto="${outputPath}" ${transcodeArgs} --input="${input}" 2>&1 
+        ${transcode} --moveto="${outputPath}" ${transcodeArgs} --input="${input}" 2>&1 | log_output
+        result=$?
+	log_debug transcode output: $(ls -l "${output}" 2>/dev/null)
+	if [[ $result = 0 && -f "${output}" ]]
+	then
+	  log_notice Transcode succesfull
+	  log_debug d=${d}, outputPath=${outputPath}, outputDir=${outputDir}
+	  if [[ ! ${outputDir} ]] 
+	  then
+	    ${mv} "${input}" "${input}"${convertedSuffix}
+	    input="${input}"${convertedSuffix}
+	  fi
+	  log_info "adding '${output}|${input}' to ${stateFile}"
+	  if [[ "${dryrun}" ]]
+	  then
+	    echo echo "${output}|${input}" '>>' "${stateFile}"
+	  else
+	    echo "${output}|${input}" >> "${stateFile}"
+	  fi
+	else
+	  log_error transcode failed with $result
+	  exitCode+=$result
+	fi
+      fi
+    done # searching for each file
+
+
+  if [[ ${d} = ${outputDir} ]]
+  then
+    # now check for orphan original files
+    #[[ "${outputDir}" ]] && dir=${outputDir} || dir=${d}
+    dir=${d}
+    log_debug "Searching for orphaned files in $dir"
+    findArgs=
+    for inputSuffix in ${inputSuffixes}
+    do
+      [[ $findArgs ]] && findArgs="${findArgs} -o "
+      findArgs="$findArgs -name '*${inputSuffix}${convertedSuffix}'"
+    done
+    # find all files that match the suffix
+    log_debug "find command: find \"$dir\" -name .humax -prune -o \\\( ${findArgs} \\\) -print"
+    eval find \"$dir\" -name .humax -prune -o \\\( ${findArgs} \\\) -print |
+      while read f
+      do
+	base="${f%%${convertedSuffix}}"
+	for suffix in ${inputSuffixes}
+	do
+	  stem="${base%%${suffix}}"
+	  [[ "${stem}" != "${base}" ]] && break
+	done
+	input="${stem}.mp4"
+	if [ ! -f "${input}" ]
+	then
+	  # matching mp4 has been deleted so delete the converted file
+	  log_info Removing files without mp4: "${stem}*${convertedSuffix}"
+	  log_debug ${rm} "${stem}*${convertedSuffix}"
+	  ${rm} "${stem}*${convertedSuffix}"
+	fi
+      done # checking for orphaned files
+  fi
+done # each directory
+
+exitCode+="${OUTPUTCOUNT}"
+exit $exitCode
+
+# vim: sw=2 nu ai
