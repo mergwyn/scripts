@@ -1,0 +1,68 @@
+#!/bin/bash
+# this script only works if run by media!
+set -o nounset
+#set -o errexit
+
+LOGLEVEL=${LOGLEVEL:-NOTICE}
+DELAY=${DELAY:-60}
+
+for function in /home/gary/functions/*.sh; do . ${function}; done
+
+# log to stdout or syslog
+log()     { echo "$@" ; }
+log_err() { >&2 echo "$@" ; }
+
+# default values
+HumaxHost=humax
+HumaxShare=/nfs/humax
+HumaxExport="${HumaxHost}:/mnt/hd2/My Video"
+NFSopts="rw,nosuid,soft,noatime,nolock,intr,rsize=131072,wsize=131072,noauto"
+User=root
+State=
+
+isalive() { ping -c 1 $1 > /dev/null 2>&1; }
+ismounted() { grep -qs "$1" /proc/mounts; }
+
+if [[ "$(whoami)" != "${User}" ]]
+then
+  log_critical "$(basename $0) must be run as user: ${User}"
+  exit 1
+fi
+
+log_notice watching for $HumaxHost, delay is $DELAY, PPID=$PPID
+while true
+do
+  if isalive "${HumaxHost}"
+  then
+    if [[ $State != up ]]
+    then
+      log_notice $HumaxHost is up
+      if ismounted "${HumaxShare}"
+      then
+        log_warn "${HumaxShare}" is already mounted
+      else
+	log_notice "Mounting ${HumaxShare}"
+	mount -t nfs -o "${NFSopts}" "${HumaxExport}" "${HumaxShare}"
+	log_debug "mount ${HumaxShare} returned $?"
+      fi
+    fi
+    State=up
+  else
+    if [[ $State != down ]]
+    then 
+      log_notice $HumaxHost is down
+      if ismounted "${HumaxShare}"
+      then
+	log_notice umounting humax share
+	umount -f -l "${HumaxShare}"
+      else
+        log_warn $HumaxHost  changed to down but "${HumaxShare}" is not mounted
+      fi
+      State=down
+    fi
+  fi
+  sleep $DELAY
+done
+log_notice "Complete"
+
+# vim: sw=2 nu ai

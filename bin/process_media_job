@@ -1,0 +1,140 @@
+#!/bin/bash
+
+#export LOGLEVEL=${LOGLEVEL:-NOTICE}
+
+for function in /home/gary/functions/*.sh; do . ${function}; done
+#log_info { echo $* ;}
+#log_notice { echo $* ;}
+
+set -o nounset
+#set -o errexit
+ARGS="$@"
+
+# default values
+HumaxHost=humax
+HumaxDir=/nfs/${HumaxHost}
+TVDir=${HumaxDir}/.TV
+HumaxBin="${HumaxDir}"/'[Deleted Items]'
+IgnoreFile=.plexignore
+TmpFile=/tmp/${IgnoreFile}
+check=
+dryrun=
+declare -i ExitCode=0
+
+Usage()
+{
+  cat <<EOF >&2
+$0: <flags> [directories to process]
+Allowed flags are:
+-l|--log=<CRITIAL|ERROR|WARN|NOTIFY|INFO|DEBUG> default WARN
+-s|--dry-run					print commands as if they would be executed
+--help     					this message
+EOF
+}
+
+params="$(getopt -o l:s --long dry-run,help,log: --name "$0" -- "$@")"
+eval set -- "$params"
+
+while true
+do
+  case "$1" in
+    -l|--log)       check=$(enumLogLevel $2); LOGLEVEL=$2; shift 2;;
+    -s|--dry-run)   dryrun=dryrun; shift;;
+    --help)         Usage; exit 0;;
+    --)             shift; break ;;
+    *)              log_critical "Not implemented: $1" ; Usage; exit 1;;
+  esac
+done
+
+rm="/bin/rm"
+ln="/bin/ln"
+mv="/bin/mv"
+mkdir="/bin/mkdir"
+touch="/usr/bin/touch"
+if [[ "${dryrun}" ]]
+then
+  rm="echo ${rm}"
+  ln="echo ${ln}"
+  mv="echo ${mv}"
+  mkdir="echo ${mkdir}"
+  touch="echo ${touch}"
+fi
+
+isalive() { ping -c 1 $1 > /dev/null 2>&1; }
+ismounted() { test -d "${1}" ; }
+
+RebuildIgnoreFile()
+{
+(
+  cd ${HumaxDir}
+
+  cat > ${TmpFile} <<!
+# Ignore directories called 
+*Deleted Items*/*
+*ModSettings*/*
+0 Films/*
+.TV/*
+!
+
+  if [[ -d ${TVDir} ]] 
+  then
+    ${rm} "${TVDir}"/*
+  find * -name '\[Deleted Items\]' -prune -o -name .tvdbseriesid -print | 
+      while read TVShow
+      do
+	ShowName=$(dirname "${TVShow}")
+	log_info "Found TV Show: ${TVShow}"
+	${ln} -s ../"${ShowName}" "${TVDir}/${ShowName}"
+	echo "${ShowName}"'/*' >> ${TmpFile}
+      done
+      if [[ $(diff ${TmpFile} ${IgnoreFile}) ]]
+      then
+        log_info "Overwriting ${IgnoreFile}"
+        ${mv} "${TmpFile}" "${IgnoreFile}"
+      else
+	${rm} "${TmpFile}"
+      fi
+  fi
+)
+}
+
+RemoveOrphans()
+{
+  local file; local suffix; local base; local subdir; local dir; local target
+
+  find "${HumaxDir}" -name '\[Deleted Items\]' -prune -o -name '*.nts' -print |
+    while read file
+    do
+      suffix=."${file##*.}"
+      base="${file%%${suffix}}"
+     
+      if [[ ! -f "${base}.ts" ]]
+      then
+	dir=$(dirname "${file}")
+	subdir="${dir#${HumaxDir}}"
+	target="${HumaxBin}${subdir}"
+	log_notice "Found orphan file: ${base}, moving to ${target}"
+	${mkdir} -p "${target}"
+	${mv} "${base}".{hmt,ts,thm,nts} "${target}"
+	${touch} "${target}/${base}".{hmt,ts,thm,nts}
+    fi
+    done
+}
+
+
+PROG=$(dirname $0)/process_media
+
+ismounted "${TVDir}" && RebuildIgnoreFile
+ismounted "${TVDir}" && RemoveOrphans
+
+ismounted "${TVDir}" && ${PROG} ${ARGS} --output="/srv/media/humax/TV" --humax --tvdb "/nfs/humax/.TV"	|| ExitCode+=$?
+ismounted "${TVDir}" && ${PROG} ${ARGS} --output="/srv/media/humax/Other" --humax  "/nfs/humax"		|| ExitCode+=$?
+ismounted "${TVDir}" && ${PROG} ${ARGS} --output="/srv/media/humax/Films" --humax "/nfs/humax/0 Films"	|| ExitCode+=$?
+${PROG} ${ARGS} "/srv/media/TV Shows"		|| ExitCode+=$?
+${PROG} ${ARGS} "/srv/media/Movies"		|| ExitCode+=$?
+#${PROG} ${ARGS} "/srv/media/Recorded/Films"	|| ExitCode+=$?
+#${PROG} ${ARGS} "/srv/media/Recorded/TV"	|| ExitCode+=$?
+#${PROG} ${ARGS} "/srv/media/Recorded/Videos"	|| ExitCode+=$?
+
+exit $ExitCode
+# vim: sw=2 nu ai
