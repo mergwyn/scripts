@@ -6,7 +6,7 @@ set -o nounset
 LOGLEVEL=${LOGLEVEL:-NOTICE}
 DELAY=${DELAY:-60}
 
-for function in /home/gary/functions/*.sh; do . ${function}; done
+for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
 
 # log to stdout or syslog
 log()     { echo "$@" ; }

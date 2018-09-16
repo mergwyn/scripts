@@ -2,7 +2,7 @@
 
 #export LOGLEVEL=${LOGLEVEL:-NOTICE}
 
-for function in /home/gary/functions/*.sh; do . ${function}; done
+for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
 #log_info { echo $* ;}
 #log_notice { echo $* ;}
 

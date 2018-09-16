@@ -5,7 +5,7 @@ set -o nounset
 #DEBUGLOG=true
 #export LOGDEST=stdout
 
-for function in /home/gary/functions/*.sh; do . ${function}; done
+for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
 
 # always log to stdout or stderr
 #log()     { echo "$@" ; }
