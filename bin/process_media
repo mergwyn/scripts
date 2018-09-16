@@ -13,7 +13,7 @@ for function in /home/gary/functions/*.sh; do . ${function}; done
 #log_output() { >&2 cat - ; }
 
 # default values
-blackoutStartTime="183000"
+blackoutStartTime="133000"
 blackoutEndTime="235900"
 currentTime=
 trashDeleteDays=7
