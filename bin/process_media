@@ -216,7 +216,12 @@ fi
 #transcodeArgs="--log=$LOGLEVEL ${transcodeArgs}"
 
 log_debug "renice -n $reniceValue $$"
-[[ $reniceValue != 0 ]] && renice -n $reniceValue $$ 2>&1 | log_output
+if [[ $reniceValue != 0 ]]
+then
+  log_debug renice -n $reniceValue $$ 
+  renice -n $reniceValue $$ 2>&1 > /dev/null
+  log_debug renice completed with $?
+fi
 
 for p in  "${prune[@]}" 
 do
@@ -308,11 +313,11 @@ do
         log_notice "Transcoding ${input} to  ${outputPath}"
         log_debug ${transcode} --moveto="${outputPath}" ${transcodeArgs} --input="${input}" 2>&1 
         ${transcode} --moveto="${outputPath}" ${transcodeArgs} --input="${input}" 2>&1 | log_output
-        result=$?
+        result=${PIPESTATUS[0]}
 	log_debug transcode output: $(ls -l "${output}" 2>/dev/null)
 	if [[ $result = 0 && -f "${output}" ]]
 	then
-	  log_notice Transcode succesfull
+	  log_notice Transcode succesful
 	  log_debug d=${d}, outputPath=${outputPath}, outputDir=${outputDir}
 	  if [[ ! ${outputDir} ]] 
 	  then
