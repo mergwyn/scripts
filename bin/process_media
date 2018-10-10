@@ -13,7 +13,7 @@ for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
 #log_output() { >&2 cat - ; }
 
 # default values
-blackoutStartTime="133000"
+blackoutStartTime="183000"
 blackoutEndTime="235900"
 currentTime=
 trashDeleteDays=7
@@ -262,7 +262,7 @@ do
       log_debug "currentTime: $currentTime, blackoutStartTime: $blackoutStartTime, blackoutEndTime: $blackoutEndTime"
       if [[ ( "$currentTime" > "$blackoutStartTime" && "$currentTime" < "$blackoutEndTime" ) ]]
       then
-	log_info "Not processing $f, time: $currentTime, blackoutStartTime: $blackoutStartTime, blackoutEndTime: $blackoutEndTime"
+	log_notice "Not processing $f, time: $currentTime, blackoutStartTime: $blackoutStartTime, blackoutEndTime: $blackoutEndTime"
 	break
       fi
       log_debug Processing file: "${f}"
@@ -332,7 +332,7 @@ do
 	    echo "${output}|${input}" >> "${stateFile}"
 	  fi
 	else
-	  log_error transcode failed with $result
+	  log_error transcode failed with $result, output file: $(ls -l "${output}" 2>/dev/null)
 	  exitCode+=$result
 	fi
       fi
