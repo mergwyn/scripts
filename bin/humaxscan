@@ -14,11 +14,12 @@ log_err() { >&2 echo "$@" ; }
 
 # default values
 HumaxHost=humax
-HumaxShare=/nfs/humax
 HumaxExport="${HumaxHost}:/mnt/hd2/My Video"
 NFSopts="rw,nosuid,soft,noatime,nolock,intr,rsize=131072,wsize=131072,noauto"
 User=root
 State=
+HumaxShare=/nfs/${HumaxHost}
+[[ -f ${HumaxShare} ]] || mkdir -p "${HumaxShare}"
 
 isalive() { ping -c 1 $1 > /dev/null 2>&1; }
 ismounted() { grep -qs "$1" /proc/mounts; }
