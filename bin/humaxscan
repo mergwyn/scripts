@@ -55,7 +55,7 @@ do
       if ismounted "${HumaxShare}"
       then
 	log_notice umounting humax share
-	umount -f -l "${HumaxShare}"
+	umount -l "${HumaxShare}"
       else
         log_warn $HumaxHost  changed to down but "${HumaxShare}" is not mounted
       fi
