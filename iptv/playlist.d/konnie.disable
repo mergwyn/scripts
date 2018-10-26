@@ -1,0 +1,63 @@
+#!/bin/bash
+
+set -o nounset
+#set -o errexit
+
+SERVICE=konnie
+XMLTV=/srv/media/xmltv
+OUTPUT=${XMLTV}/${SERVICE}.m3u
+CHANNELS=${XMLTV}/${SERVICE}.channels
+URL="http://sportsnstreams.zapto.org:4545/get.php?username=gary@theclarkhome.com&password=LHTh3MeyET&type=m3u_plus&output=ts" 
+channel=
+
+while read -r pattern
+do
+    sedscript+="/$pattern/,+1 d;"
+done <<EOF
+(TEST)
+tvg-ID=""
+tvg-name="INT:
+BBC
+ITV
+DAVE
+CHANNEL 4
+4SEVEN
+USA\/CA:
+CHANNEL 5
+5 STAR
+5 USA
+MORE 4
+FRANCE 24
+BACKUP
+EOF
+
+getChannelNumber()
+{
+  local num=$(grep -ne "^$*\$" ${CHANNELS} | grep -Eo '^[^:]+')
+  [[ $num -eq "" ]] && num=0
+  echo $num
+}
+
+
+[[ -f "${CHANNELS}" ]] || touch "${CHANNELS}"
+
+exec > $OUTPUT
+echo "#EXTM3U"
+curl -s "${URL}" |
+sed '/#EXTM3U/d' |
+sed -e "${sedscript}" |
+while read line
+do
+  channelID=$(echo  $line | sed 's/^.*tvg-name="\([^"]*\)\" .*$/\1/')
+  channel=$(getChannelNumber "${channelID}")
+  if [[ $channel = 0 ]] 
+  then
+    echo ${channelID} >> ${CHANNELS}
+    channel=$(getChannelNumber "${channelID}")
+  fi
+
+  echo $line |
+    sed -e "s/tvg-ID/tvh-chnum=\"$channel\" &/" -e "s/group-title=\"/&H264-ACC|/"
+  read line
+  echo $line
+done 

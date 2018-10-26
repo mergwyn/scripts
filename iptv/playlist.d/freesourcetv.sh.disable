@@ -1,0 +1,75 @@
+#!/bin/bash
+
+set -o nounset
+#set -o errexit
+XMLTV=/srv/media/xmltv
+
+URLROOT="http://freesourcetv.com/m3u-files/uk_"
+URLTAIL="_iptv_freesourcetv_com.m3u"
+
+channel=
+sedscript1=
+sedscript2=
+
+getChannelNumber()
+{
+  local num=$(grep -ne "^$*\$" ${CHANNELS} | grep -Eo '^[^:]+')
+  [[ $num -eq "" ]] && num=0
+  echo $num
+}
+
+# channels to deleted
+while read -r pattern
+do
+    sedscript1+="/$pattern/,+1 d;"
+done <<EOF
+group-title="VOD"
+EOF
+
+# channels to be mapped
+while IFS='|' read -r pattern1 pattern2
+do
+    sedscript1+="s|$pattern1|$pattern2|;"
+done <<EOF
+True Movies 2|True Movies+1
+EOF
+
+addchannels()
+{
+  SERVICE=$1
+  URL=$2
+  OUTPUT=${XMLTV}/${SERVICE}.m3u
+  CHANNELS=${XMLTV}/${SERVICE}.channels
+
+  [[ -f "${CHANNELS}" ]] || touch "${CHANNELS}"
+  echo "${sedscript1}"
+
+  exec > $OUTPUT
+  echo "#EXTM3U"
+  curl -s "${URL}" |
+  sed '/#EXTM3U/d' |
+  sed 's/^M$//' |
+  sed -e "${sedscript1}" |
+  while read line
+  do
+    channelID=$(echo  $line | sed 's/^#EXTINF:0,//;s/^UK HD[:] *//;s/UK: *//;')
+    channel=$(getChannelNumber "${channelID}")
+    if [[ $channel = 0 ]] 
+    then
+      echo ${channelID} >> ${CHANNELS}
+      channel=$(getChannelNumber "${channelID}")
+    fi
+
+    echo "#EXTINF:-1 tvh-chnum=\"${channel}\" group-title=H264-ACC,${channelID}"
+    read line
+    echo $line
+  done 
+}
+
+URL="${URLROOT}$(date -d '-2 day' +%d_%m_%Y)${URLTAIL}"
+URL="http://freesourcetv.com/m3u-files/uk_27_03_2018_iptv_freesourcetv_com.m3u"
+URL="http://freesourcetv.com/m3u-files/uk_iptv_03_04_2018_freesourcetv_com.m3u"
+
+addchannels freesourcetv "${URL}"
+
+# vim: nu sw=2 ai

@@ -1,0 +1,7 @@
+#!/bin/sh
+
+DIR="/var/lib/hts/playlist.d"
+for service in "${DIR}"/*.sh
+do
+  "${service}"
+done
