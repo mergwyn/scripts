@@ -1,6 +1,6 @@
 #!/bin/sh
 
-DIR="/var/lib/hts/epg.d"
+DIR="$(dirname $0)/epg.d"
 for service in "${DIR}"/*.sh
 do
   "${service}"
