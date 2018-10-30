@@ -1,0 +1,7 @@
+#!/bin/sh
+
+DIR="$(dirname $0)/epg.d"
+for service in "${DIR}"/*.sh
+do
+  "${service}"
+done

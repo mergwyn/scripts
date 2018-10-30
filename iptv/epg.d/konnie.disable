@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -o nounset
+#set -o errexit
+
+SERVICE=konnie
+XMLTV=/srv/media/xmltv
+OUTPUT=${XMLTV}/${SERVICE}.xml
+tvhsock=/var/lib/hts/.hts/tvheadend/epggrab/xmltv.sock
+
+/opt/puppetlabs/puppet/bin/curl -s "http://sportsnstreams.zapto.org:4545/xmltv.php?username=gary@theclarkhome.com&password=LHTh3MeyET" >  ${OUTPUT}
+
+socat FILE:${OUTPUT} UNIX-CONNECT:${tvhsock} 

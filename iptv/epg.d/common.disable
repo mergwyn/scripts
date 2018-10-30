@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#set -o nounset
+#set -o errexit
+
+SERVICES=(
+#"konnie	http://sportsnstreams.zapto.org:4545/xmltv.php?username=gary@theclarkhome.com&password=LHTh3MeyET"
+#"toki	https://www.gonowiptv.co.uk/app/download/13537554829/epg.xml.gz?t=1517954279"
+#"koditvepg	http://epg.koditvepg.com/GB/guide.xml"
+#"xmltvuk72	http://www.xmltv.co.uk/feed/6463"
+#"xmltvuk7	http://www.xmltv.co.uk/feed/6582"
+#magic		'http://vmdirect.co.uk/xmltv.php?username=aeeisojf&password=Zy3zA93jb1'
+)
+XMLTV=/srv/media/xmltv
+tvhsock=/var/lib/hts/.hts/tvheadend/epggrab/xmltv.sock
+curl=/opt/puppetlabs/puppet/bin/curl
+
+addservice()
+{
+	SERVICE=$1
+	URL=$2
+	OUTPUT=${XMLTV}/${SERVICE}.xml
+
+	"${curl}" -s "${URL}"  >  ${OUTPUT}
+
+	socat FILE:${OUTPUT} UNIX-CONNECT:${tvhsock} 
+}
+
+
+for LINE in "${SERVICES[@]}"
+do
+	addservice $LINE
+done

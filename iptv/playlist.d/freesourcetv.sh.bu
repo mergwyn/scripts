@@ -1,0 +1,120 @@
+#!/bin/bash
+
+set -o nounset
+#set -o errexit
+XMLTV=/srv/media/xmltv
+
+URLROOT="http://freesourcetv.com/m3u-files/uk_"
+URLTAIL="_iptv_freesourcetv_com.m3u"
+
+channel=
+sedscript1=
+sedscript2=
+
+getChannelNumber()
+{
+  local num=$(grep -ne "^$*\$" ${CHANNELS} | grep -Eo '^[^:]+')
+  [[ $num -eq "" ]] && num=0
+  echo $num
+}
+
+# channels to deleted
+while read -r pattern
+do
+    sedscript1+="/$pattern/,+1 d;"
+done <<EOF
+ENGLAND
+Star Life
+RTE
+Liverpool FC
+Watch
+Manchester United TV
+SkyShowcase
+HBO Comedy
+Sky Cinema Sci-fi & Horror HD
+CBBC Three
+EOF
+
+# channels to be mapped
+while IFS='|' read -r pattern1 pattern2
+do
+    sedscript1+="s|$pattern1|$pattern2|;"
+done <<EOF
+5 USA|5USA
+BBC 1|BBC One
+BBC 2|BBC Two
+BBC 4|BBC Four
+BBC News|BBC News Channel
+BT Sport ESPN|BT Sport//ESPN
+BT Sports|BT Sport
+BT Sport 1 HD|BT Sport 1HD
+Crime &Thriller|Crime \& Thriller
+Discovery\$|Discovery Channel
+Discovery Home Health|Discovery Home \& Health
+Film 4|Film4
+Fox|FOX
+Gold TV|GOLD
+History Channel|History
+ITV 1|ITV London-ITV
+ITV 2|ITV2
+ITV 3|ITV3
+ITV 4|ITV4
+Life Time|Lifetime
+Movies24|Movies 24
+Movies4Man1|Movies4Men +1
+Movies4Man|Movies4Men
+NIck JR|Nick Jr.
+Sky Movies Premier HD|Sky Cinema Premiere HD
+Sky Movies Hits Showcase|Sky Cinema Hits
+Sky Movies Disney HD|Sky Cinema Disney HD
+Sky Movies|Sky Cinema
+Sky One|Sky 1
+SKY|Sky
+Sky Sport |Sky Sports 
+Sky Sports Premiere|Sky Sports Premier
+Sky Two HD|Sky 2
+SONY TV|Sony Channel
+Travel|Travel Channel
+True Movies 1|True Movies
+True Movies 2|True Movies+1
+EOF
+
+addchannels()
+{
+  SERVICE=$1
+  URL=$2
+  OUTPUT=${XMLTV}/${SERVICE}.m3u
+  CHANNELS=${XMLTV}/${SERVICE}.channels
+
+  [[ -f "${CHANNELS}" ]] || touch "${CHANNELS}"
+  echo "${sedscript1}"
+
+  exec > $OUTPUT
+  echo "#EXTM3U"
+  curl -s "${URL}" |
+  sed '/#EXTM3U/d' |
+  sed 's/^M$//' |
+  sed -e "${sedscript1}" |
+  while read line
+  do
+    channelID=$(echo  $line | sed 's/^#EXTINF:0,UK[:_] *\([^"]*\).*$/\1/')
+    channel=$(getChannelNumber "${channelID}")
+    if [[ $channel = 0 ]] 
+    then
+      echo ${channelID} >> ${CHANNELS}
+      channel=$(getChannelNumber "${channelID}")
+    fi
+
+    echo "#EXTINF:-1 tvh-chnum=\"${channel}\" group-title=H264-ACC,${channelID}"
+    read line
+    echo $line
+  done 
+}
+
+URL="${URLROOT}$(date -d '-2 day' +%d_%m_%Y)${URLTAIL}"
+URL="http://freesourcetv.com/m3u-files/uk_27_03_2018_iptv_freesourcetv_com.m3u"
+URL="http://freesourcetv.com/m3u-files/uk_iptv_03_04_2018_freesourcetv_com.m3u"
+
+addchannels freesourcetv "${URL}"
+
+# vim: nu sw=2 ai
