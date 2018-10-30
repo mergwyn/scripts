@@ -44,9 +44,10 @@ mkdir=mkdir
 rmdir=rmdir
 touch=touch
 sed=sed
-progDir=/usr/src/sickbeard_mp4_automator
+progDir=/opt/sickbeard_mp4_automator
+configDir=/etc/sickbeard_mp4_automator
 transcode="/usr/bin/python3 ${progDir}/manual.py"
-transcodeArgs="--config=${progDir}/plex.ini --auto"
+transcodeArgs="--config=${configDir}/plex.ini --auto"
 
 # Directories to scan
 prune=(
