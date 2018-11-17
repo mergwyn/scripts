@@ -71,6 +71,8 @@ UK :~
 UK: ~
 UK:~
 UK ~
+FHD : ~
+SKY SPORTS~Sky Sports
 tvg-id="" tvg-name="BBC NEWS HD 1080\*"~tvg-id="" tvg-name="UK BBC NEWS"
 tvg-id="" tvg-name="BBC NEWS HD 1080\*"~tvg-id="" tvg-name="UK BBC NEWS"
 tvg-id="" tvg-name="BBC FOUR HD 1080\*"~tvg-id="BBC4.uk" tvg-name="UK BBC 4"
