@@ -3,6 +3,7 @@
 set -o nounset
 #set -o errexit
 XMLTV=/srv/media/xmltv
+curl=/opt/puppetlabs/puppet/bin/curl
 
 URL="http://vmdirect.co.uk/get.php?username=hhtzoznu&password=q53UWdm5g&type=m3u_plus&output=ts"
 
@@ -118,7 +119,7 @@ addchannels()
 
   exec > $OUTPUT
   echo "#EXTM3U"
-  curl -s "${URL}" |
+  $curl -s "${URL}" |
   sed '/#EXTM3U/d' |
   sed -e "${sedscript}" |
   while read line
@@ -133,7 +134,7 @@ addchannels()
     fi
 
     echo $line |
-      sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" -e 's/group-title="/&H264-AAC|/'
+      sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" -e 's/\(group-title=".*\)",/\1|H264-AAC",/'
     read line
     echo $line
   done 
