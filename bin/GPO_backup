@@ -1,0 +1,105 @@
+#!/bin/bash
+set -o nounset
+
+DEBUGLOG=true
+#export LOGDEST=stdout
+
+for function in /home/gary/functions/*.sh; do . ${function}; done
+
+where=/srv/backup/delta/GPO
+#Number of days to keep the backup
+days="-daystart -mtime +2"
+keep=3
+backupChanged=
+
+processManifest()
+{
+  xml2 < $1 |
+  sed -e 's:/Backups/BackupInst::;s:^/::' |
+  while read line
+  do
+    key=${line%=*}
+    case $key in
+    "GPOGuid")
+      _GPOGuid=${line#*=};;
+    "ID")
+      _ID=${line#*=};;
+    "GPODisplayName")
+      _GPODisplayName=${line#*=}
+      echo ${_GPOGuid} ${_ID} ${_GPODisplayName}
+      ;;
+    esac
+  done
+}
+
+cleanBackups()
+{
+  backups=($(ls -1t ${where} 2> /dev/null))
+  count=${#backups[@]}
+  log_debug "Cleanbackups: there are $count backups, want to keep ${keep}"
+  for (( index=${keep}; index<${count}; index++ ))
+  do
+    log_debug "Cleanbackups: delet ing backup ${backups[${index}]} at index ${index}"
+    log_debug Cleanbackups: rm -f "${where}"/"${backups[${index}]}"
+    # rm -f "${where}"/"${backups[${index}]}"
+  done
+}
+
+declare -i count=0
+backups=($(ls -1t ${where} 2> /dev/null))
+count=${#backups[@]}
+
+adjCount=$(( ${#backups[@]} - 1 )) # excludes highest index = earliest backup
+for (( index=0; index<${adjCount}; index++ ))
+do
+  backupChanged=
+  latest=${backups[$index]}
+  prev=${backups[ $(( $index + 1 )) ]}
+  log_info "Comparing ${latest} with ${prev}"
+  if [[ -z ${latest} ]]
+  then
+    log_error "No latest backup found ${latest}"
+    break
+  fi
+  if [[ -z ${prev} ]]
+  then
+    log_error "No previous backup found ${prev}"
+    break
+  fi
+
+  while read -r GPOGuid ID GPODisplayName
+  do
+    log_debug ${GPOGuid} ${ID} ${GPODisplayName}
+    log_debug Searching for ${GPOGuid} :
+    prevID=$(processManifest "${where}/${prev}"/manifest.xml | grep "${GPOGuid}" | cut -d ' ' -f 2)
+    prevDir="${where}/${prev}/${prevID}" 
+    if [[ ! -d "${prevDir}" ]]
+    then
+      log_debug Previous dir for ${ID}: ${prevDir} does not exist
+      backupChanged="backupChanged"
+      break
+    fi
+    latestDir="${where}/${latest}/${ID}" 
+    diff --brief "${latestDir}"/Backup.xml "${prevDir}"/Backup.xml 2>/dev/null > /tmp/$$
+    result=$?
+    if [[ ${result} != 0 ]]
+    then
+      backupChanged="backupChanged"
+      log_debug $(cat /tmp/$$)
+      break
+    fi
+  done < <(processManifest "${where}/${latest}"/manifest.xml)
+  rm /tmp/$$
+  log_debug Backup Changed is: $backupChanged
+
+  if [[ ! "${backupChanged}" ]] 
+  then
+    log_notice Backup not changed, deleting "${where}/${latest}" 
+    log_debug rm -rf "${where}/${latest}" 
+    #rm -rf "${where}/${latest}" 
+  fi
+done
+
+cleanBackups
+
+# vim: sw=2:ai:nu expandtab
