@@ -39,7 +39,7 @@ cleanBackups()
   log_debug "Cleanbackups: there are $count backups, want to keep ${keep}"
   for (( index=${keep}; index<${count}; index++ ))
   do
-    log_debug "Cleanbackups: delet ing backup ${backups[${index}]} at index ${index}"
+    log_notice "Cleanbackups: deleting backup ${backups[${index}]} at index ${index}"
     log_debug Cleanbackups: rm -f "${where}"/"${backups[${index}]}"
     # rm -f "${where}"/"${backups[${index}]}"
   done
