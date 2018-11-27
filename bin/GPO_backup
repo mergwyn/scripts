@@ -96,7 +96,7 @@ do
   then
     log_notice Backup not changed, deleting "${where}/${latest}" 
     log_debug rm -rf "${where}/${latest}" 
-    #rm -rf "${where}/${latest}" 
+    rm -rf "${where}/${latest}" 
   fi
 done
 
