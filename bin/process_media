@@ -318,7 +318,7 @@ do
 	log_debug transcode output: $(ls -l "${output}" 2>/dev/null)
 	if [[ $result = 0 && -f "${output}" ]]
 	then
-	  log_notice Transcode succesful
+	  log_notice Transcode successful
 	  log_debug d=${d}, outputPath=${outputPath}, outputDir=${outputDir}
 	  if [[ ! ${outputDir} ]] 
 	  then
