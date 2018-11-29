@@ -5,7 +5,7 @@ set -o nounset
 XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 
-URL="http://vmdirect.co.uk/get.php?username=hhtzoznu&password=q53UWdm5g&type=m3u_plus&output=ts"
+URL="http://cdn.thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
 
 channel=
 sedscript_filter=
