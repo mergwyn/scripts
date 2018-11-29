@@ -4,7 +4,7 @@
 #set -o errexit
 
 SERVICE=magic
-URL='http://vmdirect.co.uk/xmltv.php?username=hhtzoznu&password=q53UWdm5g'
+URL='http://thebesthost.uk//xmltv.php?username=hhtzoznu&password=q53UWdm5g'
 
 XMLTV=/srv/media/xmltv
 tvhsock=/var/lib/hts/.hts/tvheadend/epggrab/xmltv.sock
