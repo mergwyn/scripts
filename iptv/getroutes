@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -o nounset
+#set -o errexit
+XMLTV=/srv/media/xmltv
+curl=/opt/puppetlabs/puppet/bin/curl
+ROUTES=/etc/openvpn/client/iptv.routes
+
+{
+  echo nopull 
+  sed -n 's;^http://\(.*\):.*$;\1;p' ${XMLTV}/*.m3u  | sort -u
+  sed -n '/^http:/p'  ${XMLTV}/*.m3u  | 
+  sed -e 's/\r//' |
+    while read URL
+    do
+      ${curl} -v -s ${URL} -o /dev/null  --max-time 5 2>&1 | sed -n 's;.*Location: http://\(.*\):.*$;\1;p'
+    done | sort -u
+} | sed 's/^/route /' > ${ROUTES}
+
+#TODO add check whether config has changed and restart vpn
+
+# vim: nu sw=2 ai

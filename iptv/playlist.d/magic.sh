@@ -8,45 +8,22 @@ curl=/opt/puppetlabs/puppet/bin/curl
 URL="http://vmdirect.co.uk/get.php?username=hhtzoznu&password=q53UWdm5g&type=m3u_plus&output=ts"
 
 channel=
-sedscript=
+sedscript_filter=
+sedscript_rename=
 
-# channels to deleted
+# channels to filtered
+sedscript_filter+='/group-title="UK: International/,+1 d;'
 while read -r pattern
 do
-    sedscript+="/$pattern/,+1 d;"
+    sedscript_filter+="/$pattern/,+1 p;"
 done <<EOF
-group-title="VOD
-M4v
-group-title="UK: International"
-group-title="Romanian Channels"
-group-title="Spain channels"
-group-title="Spain Channels"
-group-title="Albanian"
-group-title="XXX"
-group-title="Portuguese Channels"
-group-title="De channels"
-group-title="Netherlands channels"
-group-title="Scandinavian Channels"
-group-title="EX-YU"
-
-group-title="Spain channels"
-group-title="France Channels"
-group-title="Italian Channels"
-group-title="Arabic Channels"
-group-title="Turkish Channels"
-group-title="USA Channels"
-group-title="3 o'clock Kick Off's"
-tvg-name="Tape
-group-title=""
-group-title="Narcos"
-group-title="TvSeries
-group-title="Documentaries TV Shows"
+group-title=\"UK
 EOF
 
 # channels to be mapped
 while IFS='~' read -r pattern1 pattern2
 do
-    sedscript+="s~$pattern1~$pattern2~g;"
+    sedscript_rename+="s~$pattern1~$pattern2~g;"
 done <<EOF
 tvg-id="" tvg-name="UK :Watch HD 1080\*"~tvg-id="W.uk" tvg-name="Watch"
 BBC1 HD~BBC 1 HD
@@ -123,7 +100,8 @@ addchannels()
   echo "#EXTM3U"
   $curl -s "${URL}" |
   sed '/#EXTM3U/d' |
-  sed -e "${sedscript}" |
+  sed -n -e "${sedscript_filter}" |
+  sed -e "${sedscript_rename}" |
   while read line
   do
     #channelID=$(echo  $line | sed 's/^.*tvg-name="\([^"]*\)\" .*$/\1/')
