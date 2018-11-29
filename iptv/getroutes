@@ -7,7 +7,6 @@ curl=/opt/puppetlabs/puppet/bin/curl
 ROUTES=/etc/openvpn/client/iptv.routes
 
 {
-  echo nopull 
   sed -n 's;^http://\(.*\):.*$;\1;p' ${XMLTV}/*.m3u  | sort -u
   sed -n '/^http:/p'  ${XMLTV}/*.m3u  | 
   sed -e 's/\r//' |
