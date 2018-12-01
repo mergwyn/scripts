@@ -4,6 +4,7 @@ set -o nounset
 #set -o errexit
 XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
+TMPFILE=/tmp/$(basename $0).$$
 ROUTES=/etc/openvpn/client/iptv.routes
 
 {
@@ -14,10 +15,17 @@ ROUTES=/etc/openvpn/client/iptv.routes
     do
       ${curl} -v -s ${URL} -o /dev/null  --max-time 5 2>&1 | sed -n 's;.*Location: http://\(.*\):.*$;\1;p'
     done | sort -u
-} | sed 's/^/route /' > ${ROUTES}
+} | sed 's/^/route /' > ${TMPFILE}
 
 # Restart clients
-#TODO: only restart if changed?
-systemctl restart openvpn-client*
+if diff ${ROUTES} ${TMPFILE}
+then
+  cp ${TMPFILE} ${ROUTES}
+  systemctl restart openvpn-client*
+  sleep 5
+  systemctl status openvpn-client*
+fi
+
+rm ${TMPFILE}
 
 # vim: nu sw=2 ai
