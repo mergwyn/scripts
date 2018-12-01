@@ -17,8 +17,8 @@ ROUTES=/etc/openvpn/client/iptv.routes
     done | sort -u
 } | sed 's/^/route /' > ${TMPFILE}
 
-# Restart clients
-if diff ${ROUTES} ${TMPFILE}
+# Restart clients if changed
+if ! diff ${ROUTES} ${TMPFILE}
 then
   cp ${TMPFILE} ${ROUTES}
   systemctl restart openvpn-client*
