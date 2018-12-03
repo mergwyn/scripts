@@ -114,7 +114,7 @@ addchannels()
     fi
 
     echo $line |
-      sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" -e 's/\(group-title=".*\)",/\1|H264-AAC",/'
+      sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" #-e 's/\(group-title=".*\)",/\1|H264-AAC",/'
     read line
     echo $line
   done 
