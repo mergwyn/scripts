@@ -41,7 +41,7 @@ cleanBackups()
   do
     log_notice "Cleanbackups: deleting backup ${backups[${index}]} at index ${index}"
     log_debug Cleanbackups: rm -f "${where}"/"${backups[${index}]}"
-    # rm -f "${where}"/"${backups[${index}]}"
+    rm -f "${where}"/"${backups[${index}]}"
   done
 }
 
