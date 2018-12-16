@@ -30,6 +30,6 @@ then
   systemctl status openpyn
 fi
 
-rm ${TMPFILE} ${TMPM3U}
+rm ${TMPFILE} ${TMPM3U} 2>/dev/null || true
 
 # vim: nu sw=2 ai
