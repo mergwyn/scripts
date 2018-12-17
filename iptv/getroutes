@@ -16,10 +16,9 @@ ${curl} -s "${URL}" |
   while read CHANNEL
   do
     echo ${CHANNEL} | sed -n 's;^http://\(.*\):.*$;\1;p' 
-    ${curl} -v -s "${CHANNEL}" -o /dev/null  --max-time 5 2>&1 
+    ${curl} -v -s "${CHANNEL}" -o /dev/null  --max-time 5 2>&1 |
+      sed -n -e 's;.*Location: http://\(.*\):.*$;\1;p' 
   done |
-    sed -n -e 's;.*Location: http://\(.*\):.*$;\1;p' \
-    	-e 's;^http://\(.*\):.*$;\1;p' | 
     sed -e 's/^/route /p' |
     sort -u >> ${TMPFILE}
 
