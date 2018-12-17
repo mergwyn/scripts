@@ -26,8 +26,8 @@ echo route-nopull > ${TMPFILE}
 if ! diff ${ROUTES} ${TMPFILE}
 then
   cp ${TMPFILE} ${ROUTES}
-  openpyn uk -d -o "$(cat ${ROUTES} | 'sed/^/--/' | tr '\n' ' ')"
-  sleep 5
+  openpyn uk -d -o "$(cat ${ROUTES} | sed 's/^/--/' | tr '\n' ' ')"
+  sleep 10
   systemctl status openpyn
 fi
 
