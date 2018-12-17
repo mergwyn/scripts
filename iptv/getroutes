@@ -5,32 +5,33 @@ set -o nounset
 XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 TMPFILE=/tmp/$(basename $0).routes.$$
-TMPM3U=/tmp/$(basename $0).m3u.$$
 ROUTES=/etc/openvpn/client/iptv.routes
 URL="http://cdn.thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
 
-${curl} -s "${URL}" -o ${TMPM3U}
 echo route-nopull > ${TMPFILE}
-{
-  sed -n 's;^http://\(.*\):.*$;\1;p' ${TMPM3U}
-  egrep '^http:' ${TMPM3U} | 
-    egrep -v '/series/|/movie/' |
-    sed 's/\r//' |
-    while read CHANNEL
-    do
-      ${curl} -v -s "${CHANNEL}" -o /dev/null  --max-time 5 2>&1
-    done | sed -n 's;.*Location: http://\(.*\):.*$;\1;p'
-} | sort -u | sed 's/^/route /' >> ${TMPFILE}
+${curl} -s "${URL}" |
+  egrep '^http:' | 
+  egrep -v '/series/|/movie/' |
+  sed 's/\r//' |
+  while read CHANNEL
+  do
+    echo ${CHANNEL} | sed -n 's;^http://\(.*\):.*$;\1;p' 
+    ${curl} -v -s "${CHANNEL}" -o /dev/null  --max-time 5 2>&1 
+  done |
+    sed -n -e 's;.*Location: http://\(.*\):.*$;\1;p' \
+    	-e 's;^http://\(.*\):.*$;\1;p' | 
+    sed -e 's/^/route /p' |
+    sort -u >> ${TMPFILE}
 
 # Restart clients if changed
 if ! diff ${ROUTES} ${TMPFILE}
 then
   cp ${TMPFILE} ${ROUTES}
-  openpyn uk -d -o "$(cat ${ROUTES} | 'sed/^/--/' | tr '\n' ' ')"
-  sleep 5
+  openpyn uk -d -o "$(cat ${ROUTES} | sed 's/^/--/' | tr '\n' ' ')"
+  sleep 10
   systemctl status openpyn
 fi
 
-rm ${TMPFILE} ${TMPM3U} 2>/dev/null || true
+rm ${TMPFILE} 2>/dev/null || true
 
 # vim: nu sw=2 ai
