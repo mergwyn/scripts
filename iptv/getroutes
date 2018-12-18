@@ -26,9 +26,10 @@ ${curl} -s "${URL}" |
 if ! diff ${ROUTES} ${TMPFILE}
 then
   cp ${TMPFILE} ${ROUTES}
-  openpyn uk -d -o "$(cat ${ROUTES} | sed 's/^/--/' | tr '\n' ' ')"
+  #openpyn uk -d -o "$(cat ${ROUTES} | sed 's/^/--/' | tr '\n' ' ')"
+  systemctl restart openvpn-client@nordvpn
   sleep 10
-  systemctl status openpyn
+  systemctl status oopenvpn-client@nordvpn
 fi
 
 rm ${TMPFILE} 2>/dev/null || true
