@@ -5,13 +5,14 @@ set -o nounset
 XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 
-URL="http://cdn.thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
+URL="http://thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
 
 channel=
 sedscript_filter=
 sedscript_rename=
 
 # channels to filtered
+sedscript_filter+='/#EXTM3U/d'
 sedscript_filter+='/group-title="UK: International/,+1 d;'
 while read -r pattern
 do
@@ -99,7 +100,6 @@ addchannels()
   exec > $OUTPUT
   echo "#EXTM3U"
   $curl -s "${URL}" |
-  sed '/#EXTM3U/d' |
   sed -n -e "${sedscript_filter}" |
   sed -e "${sedscript_rename}" |
   while read line
