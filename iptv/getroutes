@@ -6,7 +6,7 @@ XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 TMPFILE=/tmp/$(basename $0).routes.$$
 ROUTES=/etc/openvpn/client/iptv.routes
-URL="http://cdn.thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
+URL="http://thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
 
 echo route-nopull > ${TMPFILE}
 ${curl} -s "${URL}" |
