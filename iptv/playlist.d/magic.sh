@@ -12,7 +12,7 @@ sedscript_filter=
 sedscript_rename=
 
 # channels to filtered
-sedscript_filter+='/#EXTM3U/d'
+sedscript_filter+='/#EXTM3U/d;'
 sedscript_filter+='/group-title="UK: International/,+1 d;'
 while read -r pattern
 do
