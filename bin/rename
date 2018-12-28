@@ -1,0 +1,4 @@
+#!/bin/bash
+pictureDir=/srv/media/Pictures
+
+find "${pictureDir}" \( -name 'ORG_*' -o -name 'DSC*' -o -name 'IMG*' \) ! -name '*.MOV' ${findArgs} -type f -print -exec exiv2 rename -F {} \; 

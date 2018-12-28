@@ -1,0 +1,10 @@
+#!/bin/bash
+pictureDir=/srv/media/Pictures
+marker=/srv/media/.last_rotated
+startDate=/tmp/rotate$$
+
+date > "${startDate}"
+[[ -f ${marker} ]] && findArgs="-newer ${marker}"
+
+find "${pictureDir}" ${findArgs} -type f -print -exec exiftran -aip {} \;
+cp -p "${startDate}" "${marker}"

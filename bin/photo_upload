@@ -1,0 +1,174 @@
+#!/bin/bash
+
+PATH=$PATH:/usr/local/bin:.
+method=rclone
+current_pid=$$
+me=$(basename $0)
+excludes="/tmp/upload_excludes"
+rcloneArgs="--transfers 32 --exclude-from ${excludes}"
+[[ -t 1 ]] && rcloneProgressArgs="-v " || rcloneProgressArgs="--stats 0 -v --syslog"
+#griveArgs="--log /var/log/grive.log"
+griveArgs=""
+[[ -t 1 ]] && griveExclude="cat -" || griveExclude="egrep -v 'Reading local directories|Reading remote server file list|Synchronizing files|Finished!'"
+[[ -t 1 ]] && griveProgressArgs="--progress-bar" || griveProgressArgs=""
+
+unisonArgs="-auto -batch -terse"
+unisonArgs="-auto -batch"
+unisonProfile="pictures.sneakernet"
+sshArgs="ssh://gary@foxtrot/"
+
+rsyncArgs="-d --delete -r --exclude-from ${excludes}"
+[[ -t 1 ]] && rsyncProgressArgs="--info=progress2 --stats" || rsyncProgressArgs="-v --stats";
+
+sleep=300
+
+log()     { [[ -t 1 ]] &&     echo "$@" || logger -t "$(basename $0)[$current_pid]" "$@"; }
+log_err() { [[ -t 2 ]] && >&2 echo "$@" || logger -s -t "$(basename $0)[$current_pid]" -p user.err "$@"; }
+
+# check if there is another instance running
+if pidof -o $$ -x "${me}" > /dev/null
+then
+    echo  "$me is already running, exiting"
+    exit 1
+fi
+createExcludes()
+{
+cat > "${excludes}" <<! 
+*.ini
+*.ini2
+*.tmp
+*.db
+*.db:encryptable
+*.docx
+._Image*
+*.info
+*.ini
+*.MOV
+PassportCopies/*
+.picasaoriginals/*
+*.pdf
+*.ptn
+*.ptn2
+*.TMP
+$RECYCLE.BIN/*
+.unison*
+!
+}
+mountGoogle()
+{
+	log "Mounting ${googleDrive}"
+	google-drive-ocamlfuse -label me "${googleDrive}"
+	status=$?
+	if [ $status -ne 0 ]
+	then 
+	    log_err "Mount returned $status, exiting"
+	    exit 1
+	fi
+
+}
+
+unmountGoogle()
+{
+	log "Unmounting ${googleDrive}"
+	until fusermount -u "${googleDrive}"
+	do
+	    log "Not able to unmount ${googleDrive}, sleeping $sleep"
+	    sleep $sleep
+	done
+}
+
+Usage()
+{
+        cat <<EOF >&2
+$0: <flags> sourceRoot destinationRoot
+Allowed flags are:
+-m|--method=<rclone|unison|rsync|grive>	default rclone
+-g|--google mountpount
+--flatten
+EOF
+        exit 1
+}
+
+params="$(getopt -o m: --long method:,flatten --name "$0" -- "$@")"
+eval set -- "$params"
+
+while true
+do
+    case "$1" in
+        -m|--method)
+		method=$2
+		shift 2
+		case "$method" in
+		rclone|unison|rsync|grive)
+			;;
+		*)	Usage;;
+		esac;;
+        -g|--google)    googleDrive=$2; shift 2;;
+        --flatten)      flatten=TRUE; shift;;
+        --)             shift; break ;;
+        *)              log_err "Not implemented: $1" >&2; exit 1 ;;
+    esac
+done
+
+[[ $# -ne 2 ]] && Usage
+sourceRoot=$1
+destRoot=$2
+shift 2
+
+
+if [ ! -d "${sourceRoot}" ] && [ "$method" != "rclone" ]
+then 
+    log_err "${sourceRoot} does not exist, exiting"
+    exit 1
+fi
+
+case "${method}" in
+rclone)
+	createExcludes
+	log "rclone sync "${sourceRoot}" "${destRoot}" ${rcloneProgressArgs} ${rcloneArgs}"
+	rclone sync "${sourceRoot}" "${destRoot}" ${rcloneProgressArgs} ${rcloneArgs}
+	log "rclone completed with status $?"
+	;;
+unison)
+	[[ "${googleDrive}" != "" ]] && mountGoogle
+	if [ ! -d "${destRoot}" ]
+	then 
+	    log_err "${destRoot} does not exist, exiting"
+	    exit 1
+	fi
+	log "Starting unison "${unisonProfile}" "${sourceRoot}" "${sshArgs}""${destRoot}" ${unisonArgs} "$@""
+	unison "${unisonProfile}" "${sourceRoot}" "${sshArgs}""${destRoot}" ${unisonArgs} "$@"
+	status=$?
+	log "unison completed with $status"
+	[[ "${googleDrive}" != "" ]] && unmountGoogle
+	;;
+rsync)
+	[[ "${googleDrive}" != "" ]] && mountGoogle
+	if [ x$flatten = "xTRUE" ]
+	then
+		shopt -s globstar
+		log "rsync ${rsyncProgressArgs} ${rsyncArgs} "${sourceRoot}"/**/. "${destRoot}"/."
+		rsync ${rsyncProgressArgs} ${rsyncArgs} "${sourceRoot}"/**/. "${destRoot}"/.
+		log "rclone completed with $?"
+		rmdir "${destRoot}"/* 2>&-
+	else
+		log "rsync ${rsyncProgressArgs} ${rsyncArgs} "${sourceRoot}"/. "${destRoot}"/."
+		rsync ${rsyncProgressArgs} ${rsyncArgs} "${sourceRoot}"/. "${destRoot}"/.
+		log "rclone completed with $?"
+	fi
+	[[ "${googleDrive}" != "" ]] && unmountGoogle
+	;;
+grive)
+	log "grive -p ${sourceRoot} -s ${destRoot} ${griveArgs}"
+	umask 0002
+	/usr/bin/grive -p "${sourceRoot}" -s "${destRoot}" ${griveArgs} 2>&1 | eval ${griveExclude}
+	status=$?
+	log "grive completed with $status"
+        # fix permisions so the new files are group writable
+	find "${sourceRoot}"/"${destRoot}"/  -type f -perm u=r -print -exec chmod 664 {} \;
+        # directores in .trash dont get the correct permisions
+        [[ -d "${sourceRoot}/.trash" ]] && chmod -R ug+w "${sourceRoot}/.trash"
+	;;
+esac
+
+log "$me complete"
