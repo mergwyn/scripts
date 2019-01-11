@@ -8,6 +8,11 @@ TMPFILE=/tmp/$(basename $0).routes.$$
 ROUTES=/etc/openvpn/client/iptv.routes
 URL="http://thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
 
+function finish {
+  rm -rf "${TMPFILE}"
+}
+trap finish EXIT
+
 echo route-nopull > ${TMPFILE}
 ${curl} -s "${URL}" |
   egrep '^http:' | 
@@ -31,7 +36,5 @@ then
   sleep 10
   systemctl status openvpn-client@nordvpn
 fi
-
-rm ${TMPFILE} 2>/dev/null || true
 
 # vim: nu sw=2 ai
