@@ -4,10 +4,9 @@ set -o nounset
 #set -o errexit
 XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
-TMPFILE=/tmp/$(basename $0).routes.$$
 ROUTES=/etc/openvpn/client/iptv.routes
 URL="http://thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
-
+TMPFILE=$(mktemp -s .routes)
 function finish {
   rm -rf "${TMPFILE}"
 }
