@@ -16,10 +16,13 @@ HumaxDir=/nfs/${HumaxHost}
 TVDir=${HumaxDir}/.TV
 HumaxBin="${HumaxDir}"/'[Deleted Items]'
 IgnoreFile=.plexignore
-TmpFile=/tmp/${IgnoreFile}
 check=
 dryrun=
 declare -i ExitCode=0
+
+TmpFile=$(mktemp -s .process_media)
+finish() { [[ -f ${TmpFile} ]] && rm -f ${TmpFile} ; }
+trap finish EXIT
 
 Usage()
 {
