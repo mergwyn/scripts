@@ -20,7 +20,7 @@ check=
 dryrun=
 declare -i ExitCode=0
 
-TmpFile=$(mktemp -s .process_media)
+TmpFile=$(mktemp --suffix .process_media)
 finish() { [[ -f ${TmpFile} ]] && rm -f ${TmpFile} ; }
 trap finish EXIT
 

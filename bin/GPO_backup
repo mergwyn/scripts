@@ -12,7 +12,7 @@ days="-daystart -mtime +2"
 keep=3
 backupChanged=
 
-scratch=$(mktemp)
+scratch=$(mktemp --suffix .GPO)
 function finish {
   rm -rf "$scratch"
 }

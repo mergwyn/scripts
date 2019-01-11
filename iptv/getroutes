@@ -6,7 +6,7 @@ XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 ROUTES=/etc/openvpn/client/iptv.routes
 URL="http://thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
-TMPFILE=$(mktemp -s .routes)
+TMPFILE=$(mktemp --suffix .routes)
 function finish {
   rm -rf "${TMPFILE}"
 }
