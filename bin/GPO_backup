@@ -12,6 +12,12 @@ days="-daystart -mtime +2"
 keep=3
 backupChanged=
 
+scratch=$(mktemp)
+function finish {
+  rm -rf "$scratch"
+}
+trap finish EXIT
+
 processManifest()
 {
   xml2 < $1 |
@@ -80,16 +86,15 @@ do
       break
     fi
     latestDir="${where}/${latest}/${ID}" 
-    diff --brief "${latestDir}"/Backup.xml "${prevDir}"/Backup.xml 2>/dev/null > /tmp/$$
+    diff --brief "${latestDir}"/Backup.xml "${prevDir}"/Backup.xml 2>/dev/null > ${scratch}
     result=$?
     if [[ ${result} != 0 ]]
     then
       backupChanged="backupChanged"
-      log_debug $(cat /tmp/$$)
+      log_debug $(cat ${scratch})
       break
     fi
   done < <(processManifest "${where}/${latest}"/manifest.xml)
-  rm /tmp/$$
   log_debug Backup Changed is: $backupChanged
 
   if [[ ! "${backupChanged}" ]] 
