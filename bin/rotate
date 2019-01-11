@@ -2,6 +2,10 @@
 pictureDir=/srv/media/Pictures
 marker=/srv/media/.last_rotated
 startDate=/tmp/rotate$$
+function finish {
+  rm -rf "${startDate}"
+}
+trap finish EXIT
 
 date > "${startDate}"
 [[ -f ${marker} ]] && findArgs="-newer ${marker}"
