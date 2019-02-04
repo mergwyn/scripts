@@ -5,14 +5,21 @@ set -o nounset
 XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 ROUTES=/etc/openvpn/client/iptv.routes
-URL="http://thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
-TMPFILE=$(mktemp --suffix .routes)
-function finish {
-  rm -rf "${TMPFILE}"
-}
+DATA="$(dirname $0)/iptv_urls"
+if [[ -f ${DATA} ]]
+then
+  . ${DATA}
+else
+  echo "URL file ${DATA} not found" >&2
+  exit 1
+fi
+URL="${MAGIC_M3U}"
+
+TMPFILE1=$(mktemp --suffix .partial)
+TMPFILE2=$(mktemp --suffix .complete)
+function finish { rm -rf "${TMPFILE1}" "${TMPFILE2}"; }
 trap finish EXIT
 
-echo route-nopull > ${TMPFILE}
 ${curl} -s "${URL}" |
   egrep '^http:' | 
   egrep -v '/series/|/movie/' |
@@ -24,16 +31,23 @@ ${curl} -s "${URL}" |
       sed -n -e 's;.*Location: http://\(.*\):.*$;\1;p' 
   done |
     sed -e 's/^/route /p' |
-    sort -u >> ${TMPFILE}
+    sort -u >> ${TMPFILE1}
 
-# Restart clients if changed
-if ! diff ${ROUTES} ${TMPFILE}
+if [ -s ${TMPFILE1} ]
 then
-  cp ${TMPFILE} ${ROUTES}
-  #openpyn uk -d -o "$(cat ${ROUTES} | sed 's/^/--/' | tr '\n' ' ')"
-  systemctl restart openvpn-client@nordvpn
-  sleep 10
-  systemctl status openvpn-client@nordvpn
+  {
+    echo route-nopull 
+    cat ${TMPFILE1}
+  } > ${TMPFILE2}
+  # Restart clients if changed
+  if ! diff ${ROUTES} ${TMPFILE2}
+  then
+    cp ${TMPFILE2} ${ROUTES}
+    #openpyn uk -d -o "$(cat ${ROUTES} | sed 's/^/--/' | tr '\n' ' ')"
+    systemctl restart openvpn-client@nordvpn
+    sleep 10
+    systemctl status openvpn-client@nordvpn
+  fi
 fi
 
 # vim: nu sw=2 ai
