@@ -5,7 +5,15 @@ set -o nounset
 XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 
-URL="http://thebesthost.uk:80/get.php?username=hhtzoznu&password=q53UWdm5g&output=ts&type=m3u_plus"
+DATA="$(dirname $0)/../iptv_urls"
+if [[ -f ${DATA} ]]
+then
+  . ${DATA}
+else
+  echo "URL file ${DATA} not found" >&2
+  exit 1
+fi
+URL="${MAGIC_M3U}"
 
 channel=
 sedscript_filter=

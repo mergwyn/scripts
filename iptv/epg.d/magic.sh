@@ -3,8 +3,17 @@
 #set -o nounset
 #set -o errexit
 
+DATA="$(dirname $0)/../iptv_urls"
+if [[ -f ${DATA} ]]
+then
+  . ${DATA}
+else
+  echo "URL file ${DATA} not found" >&2
+  exit 1
+fi
+
 SERVICE=magic
-URL='http://thebesthost.uk//xmltv.php?username=hhtzoznu&password=q53UWdm5g'
+URL=${MAGIC_EPG}
 
 XMLTV=/srv/media/xmltv
 tvhsock=/var/lib/hts/.hts/tvheadend/epggrab/xmltv.sock
