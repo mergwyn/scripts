@@ -1,0 +1,4 @@
+MAGIC_HOST="http://watchthis.uk"
+MAGIC_USERNAME="username=hhtzoznu&password=q53UWdm5g"
+MAGIC_M3U="${MAGIC_HOST}:80/get.php?${MAGIC_USERNAME}&output=ts&type=m3u_plus"
+MAGIC_EPG="${MAGIC_HOST}/xmltv.php?${MAGIC_USERNAME}"
