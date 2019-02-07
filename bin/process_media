@@ -245,15 +245,16 @@ do
     log_warn dir $d does not exist 
     continue
   fi
+
+  [[ "${outputDir}" ]] && stateFile="${outputDir}"/.state || stateFile="${d}"/.state
+  CheckState "${stateFile}"
+  
   if [[ -f "${d}"/.ignore ]]
   then
     log_info ".ignore present, ignoring $d"
     continue
   fi
 
-  [[ "${outputDir}" ]] && stateFile="${outputDir}"/.state || stateFile="${d}"/.state
-  CheckState "${stateFile}"
-  
   # find all files that match the suffix
   #eval find -L \"$d\"/* \\\( -name \"${topDir}\" -prune -o "${pruneList}" \\\) -o \\\( ${findArgs} \\\) -mmin +10 -print |
   eval find -L \"$d\"/* \\\( -name \"${topDir}\" -prune -o "${pruneList}" \\\) -o \\\( ${findArgs} \\\) -mmin +10 -print 2>/dev/null |
