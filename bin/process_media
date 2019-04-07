@@ -334,7 +334,7 @@ do
 	    echo "${output}|${input}" >> "${stateFile}"
 	  fi
 	else
-	  log_error transcode failed with $result, output file: $(ls -l "${output}" 2>/dev/null)
+	  log_error Transcode failed with $result, output file: $(ls -l "${output}" 2>/dev/null)
 	  exitCode+=$result
 	fi
       fi
