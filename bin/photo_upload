@@ -165,7 +165,7 @@ grive)
 	status=$?
 	log "grive completed with $status"
         # fix permisions so the new files are group writable, and readable by all
-	find "${sourceRoot}"/"${destRoot}"/  -type f ! -perm /a=r -print -exec chmod 664 {} \;
+	find "${sourceRoot}"/"${destRoot}"/  -type f ! -perm -a=r -print -exec chmod 664 {} \;
         # directores in .trash dont get the correct permisions
         [[ -d "${sourceRoot}/.trash" ]] && chmod -R ug+w "${sourceRoot}/.trash"
 	;;
