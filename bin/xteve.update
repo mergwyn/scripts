@@ -5,7 +5,7 @@ set -o nounset
 for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
 
 
-log_notice $0 starting
+log_info $0 starting
 
 callapi()
 {
