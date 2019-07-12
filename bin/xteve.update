@@ -9,16 +9,20 @@ log_info $0 starting
 
 callapi()
 {
-  _cmd=${1}
-  log_debug call api called with ${_cmd}
-  eval /opt/puppetlabs/puppet/bin/curl -d \'\{ \"cmd\"\:\"${_cmd}\" \}\' -s "http://india.theclarkhome.com:34400/api/" |
+  _call=${1}
+  log_debug call api called with ${_call}
+  eval /opt/puppetlabs/puppet/bin/curl -d \'\{ \"cmd\"\:\"${_call}\" \}\' -s "http://india.theclarkhome.com:34400/api/" |
     jq -c ".status"
 }
 
-result=$(callapi update.xmltv)
-log_info update.xmltv returned ${result}
-[[ ${result} = "true" ]] || log_error "xmltv update failed with $result"
+runcmd()
+{
+  _cmd=${1}
+  result=$(callapi ${_cmd})
+  log_info update.${_cmd} returned ${result}
+  [[ ${result} = "true" ]] || log_error "${_cmd} update failed with $result"
+}
 
-result=$(callapi update.xepg)
-log_info update.expg returned ${result}
-[[ ${result} = "true" ]] || log_error "xepg update failed with $result"
+runcmd update.m3u
+runcmd update.xmltv
+runcmd update.xepg
