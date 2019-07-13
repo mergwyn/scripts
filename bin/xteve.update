@@ -12,9 +12,8 @@ callapi()
 {
   _call=${1}
   log_debug call api called with ${_call}
-  responsedef=$(eval /opt/puppetlabs/puppet/bin/curl -d \'\{ \"cmd\"\:\"${_call}\" \}\' -s "http://india.theclarkhome.com:34400/api/" |
-    jq -r '. | to_entries | .[] | "[\"" + .key + "\"]=" + (.value | @sh)')
-  eval "response=($responsedef)"
+  eval "response=($(eval /opt/puppetlabs/puppet/bin/curl -d \'\{ \"cmd\"\:\"${_call}\" \}\' -s "http://india.theclarkhome.com:34400/api/" |
+    jq -r '. | to_entries | .[] | "[\"" + .key + "\"]=" + (.value | @sh)'))"
   [[ ${response[status]} = "true" ]]
 }
 
