@@ -1,28 +1,38 @@
 #!/bin/bash
-set -o nounset
+set -o nounset err
 
 
 for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
 
 
+declare -A response
 log_info $0 starting
 
 callapi()
 {
   _call=${1}
   log_debug call api called with ${_call}
-  eval /opt/puppetlabs/puppet/bin/curl -d \'\{ \"cmd\"\:\"${_call}\" \}\' -s "http://india.theclarkhome.com:34400/api/" |
-    jq -c ".status"
+  responsedef=$(eval /opt/puppetlabs/puppet/bin/curl -d \'\{ \"cmd\"\:\"${_call}\" \}\' -s "http://india.theclarkhome.com:34400/api/" |
+    jq -r '. | to_entries | .[] | "[\"" + .key + "\"]=" + (.value | @sh)')
+  eval "response=($responsedef)"
+  [[ ${response[status]} = "true" ]]
 }
 
 runcmd()
 {
   _cmd=${1}
-  result=$(callapi ${_cmd})
-  log_info update.${_cmd} returned ${result}
-  [[ ${result} = "true" ]] || log_error "${_cmd} update failed with $result"
+  if callapi ${_cmd} 
+  then
+    log_info ${_cmd} returned ${response[status]} \
+    exit 0
+  else
+    log_error ${_cmd} failed status:${response[status]} err:${response[err]}
+    exit 1
+  fi
 }
 
 runcmd update.m3u
 runcmd update.xmltv
 runcmd update.xepg
+
+# vim: sw=2 nu ai
