@@ -2,4 +2,4 @@
 
 $(dirname $0)/rotate
 $(dirname $0)/rename
-$(dirname $0)/photo_upload --method=grive /srv/media "Google Photos"
+#$(dirname $0)/photo_upload --method=grive /srv/media "Google Photos"
