@@ -1,14 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -o nounset
 #set -o errexit
-XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 ROUTEFILE=/etc/openvpn/client/iptv.routes
-DATA="$(dirname $0)/iptv_urls"
-if [[ -f ${DATA} ]]
+DATA=$(dirname "$0")/iptv_urls
+if [[ -f "${DATA}" ]]
 then
-  . ${DATA}
+  # shellcheck source=/dev/null
+  . "${DATA}"
 else
   echo "URL file ${DATA} not found" >&2
   exit 1
@@ -21,35 +21,42 @@ trap finish EXIT
 
 for URL in  "${ROUTES[@]}"
 do
+  declare -A _seen=( ) 
   ${curl} -s "${URL}" |
-    egrep '^http:' | 
-    egrep -v '/series/|/movie/' |
+    grep -E '^http:' | 
+    grep -Ev '/series/|/movie/' |
     sed 's/\r//' |
-    while read CHANNEL
+    while read -r CHANNEL
     do
-      echo ${CHANNEL} | sed -n 's;^http://\(.*\):.*$;\1;p' 
+      # extract domain name and check if already seen
+      _domain="${URL#http://}"
+      _domain="${_domain#https://}"
+      _domain=${_domain%%/*}
+      _domain=${_domain%%:*}
+      [[ "${#_seen[*]}" -ne 0 && "${_seen[${_domain}]}" ]] && continue
+      _seen[${_domain}]="${_domain} already processed"
+
+      echo "${_domain#*:*@}"
       ${curl} -v -s "${CHANNEL}" -o /dev/null  --max-time 5 2>&1 |
 	sed -n -e 's;.*Location: http://\(.*\):.*$;\1;p' 
     done
 done |
   sed -e 's/^/route /p' |
-  sort -u >> ${TMPFILE1}
+  sort -u >> "${TMPFILE1}"
 
-if [ -s ${TMPFILE1} ]
+if [ -s "${TMPFILE1}" ]
 then
   {
     echo route-nopull 
-    cat ${TMPFILE1}
-  } > ${TMPFILE2}
+    cat "${TMPFILE1}"
+  } > "${TMPFILE2}"
   # Restart clients if changed
-  if ! diff ${ROUTEFILE} ${TMPFILE2}
+  if ! diff "${ROUTEFILE}" "${TMPFILE2}"
   then
-    cp ${TMPFILE2} ${ROUTEFILE}
+    cp "${TMPFILE2}" "${ROUTEFILE}"
     #openpyn uk -d -o "$(cat ${ROUTEFILE} | sed 's/^/--/' | tr '\n' ' ')"
     systemctl restart openvpn-client@nordvpn
     sleep 10
     systemctl status openvpn-client@nordvpn
   fi
 fi
-
-# vim: nu sw=2 ai
