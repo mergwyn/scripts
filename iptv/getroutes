@@ -36,7 +36,7 @@ do
       [[ "${#_seen[*]}" -ne 0 && "${_seen[${_domain}]}" ]] && continue
       _seen[${_domain}]="${_domain} already processed"
 
-      echo "${_domain#*:*@}"
+      echo "${_domain}"
       ${curl} -v -s "${CHANNEL}" -o /dev/null  --max-time 5 2>&1 |
 	sed -n -e 's;.*Location: http://\(.*\):.*$;\1;p' 
     done
