@@ -2,13 +2,13 @@
 
 #export LOGLEVEL=${LOGLEVEL:-NOTICE}
 
-for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
+for function in $(dirname "$0")/../functions/*.sh; do . "${function}"; done
 #log_info { echo $* ;}
 #log_notice { echo $* ;}
 
 set -o nounset
 #set -o errexit
-ARGS="$@"
+ARGS="$*"
 
 # default values
 HumaxHost=humax
@@ -21,7 +21,7 @@ dryrun=
 declare -i ExitCode=0
 
 TmpFile=$(mktemp --suffix .process_media)
-finish() { [[ -f ${TmpFile} ]] && rm -f ${TmpFile} ; }
+finish() { [[ -f "${TmpFile}" ]] && rm -f "${TmpFile}" ; }
 trap finish EXIT
 
 Usage()
@@ -41,7 +41,7 @@ eval set -- "$params"
 while true
 do
   case "$1" in
-    -l|--log)       check=$(enumLogLevel $2); LOGLEVEL=$2; shift 2;;
+    -l|--log)       check=$(enumLogLevel "$2"); LOGLEVEL="$2"; shift 2;;
     -s|--dry-run)   dryrun=dryrun; shift;;
     --help)         Usage; exit 0;;
     --)             shift; break ;;
@@ -63,15 +63,15 @@ then
   touch="echo ${touch}"
 fi
 
-isalive() { ping -c 1 $1 > /dev/null 2>&1; }
+isalive() { ping -c 1 "$1" > /dev/null 2>&1; }
 ismounted() { test -d "${1}" ; }
 
 RebuildIgnoreFile()
 {
 (
-  cd ${HumaxDir}
+  cd "${HumaxDir}" || exit
 
-  cat > ${TmpFile} <<!
+  cat > "${TmpFile}" <<!
 # Ignore directories called 
 *Deleted Items*/*
 *ModSettings*/*
@@ -81,16 +81,15 @@ RebuildIgnoreFile()
 
   if [[ -d ${TVDir} ]] 
   then
-    ${rm} "${TVDir}"/*
-  find * -name '\[Deleted Items\]' -prune -o -name .tvdbseriesid -print | 
-      while read TVShow
+    ${rm} -f "${TVDir}"/*
+      while IFS= read -r -d '' TVShow
       do
 	ShowName=$(dirname "${TVShow}")
 	log_info "Found TV Show: ${TVShow}"
 	${ln} -s ../"${ShowName}" "${TVDir}/${ShowName}"
-	echo "${ShowName}"'/*' >> ${TmpFile}
-      done
-      if [[ $(diff ${TmpFile} ${IgnoreFile}) ]]
+	echo "${ShowName}"'/*' >> "${TmpFile}"
+      done< <(find -- * -name '\[Deleted Items\]' -prune -o -name .tvdbseriesid -print0)
+      if [[ $(diff "${TmpFile}" "${IgnoreFile}") ]]
       then
         log_info "Overwriting ${IgnoreFile}"
         ${mv} "${TmpFile}" "${IgnoreFile}"
@@ -105,36 +104,35 @@ RemoveOrphans()
 {
   local file; local suffix; local base; local subdir; local dir; local target
 
-  find "${HumaxDir}" -name '\[Deleted Items\]' -prune -o -name '*.nts' -print |
-    while read file
-    do
-      suffix=."${file##*.}"
-      base="${file%%${suffix}}"
-     
-      if [[ ! -f "${base}.ts" ]]
-      then
-	dir=$(dirname "${file}")
-	subdir="${dir#${HumaxDir}}"
-	target="${HumaxBin}${subdir}"
-	log_notice "Found orphan file: ${base}, moving to ${target}"
-	${mkdir} -p "${target}"
-	${mv} "${base}".{hmt,ts,thm,nts} "${target}"
-	${touch} "${target}/${base}".{hmt,ts,thm,nts}
+  while IFS= read -r -d '' file
+  do
+    suffix=."${file##*.}"
+    base="${file%%${suffix}}"
+   
+    if [[ ! -f "${base}.ts" ]]
+    then
+      dir=$(dirname "${file}")
+      subdir="${dir#${HumaxDir}}"
+      target="${HumaxBin}${subdir}"
+      log_notice "Found orphan file: ${base}, moving to ${target}"
+      ${mkdir} -p "${target}"
+      ${mv} "${base}".{hmt,ts,thm,nts} "${target}"
+      ${touch} "${target}/${base}".{hmt,ts,thm,nts}
     fi
-    done
+  done< <(find "${HumaxDir}" -name '\[Deleted Items\]' -prune -o -name '*.nts' -print0)
 }
 
 
-PROG=$(dirname $0)/process_media
+PROG=$(dirname "$0")/process_media
 
 ismounted "${TVDir}" && RebuildIgnoreFile
 ismounted "${TVDir}" && RemoveOrphans
 
-ismounted "${TVDir}" && ${PROG} ${ARGS} --output="/srv/media/humax/TV" --humax --tvdb "/nfs/humax/.TV"	|| ExitCode+=$?
-ismounted "${TVDir}" && ${PROG} ${ARGS} --output="/srv/media/humax/Other" --humax  "/nfs/humax"		|| ExitCode+=$?
-ismounted "${TVDir}" && ${PROG} ${ARGS} --output="/srv/media/humax/Films" --humax "/nfs/humax/0 Films"	|| ExitCode+=$?
-${PROG} ${ARGS} "/srv/media/TV Shows"		|| ExitCode+=$?
-${PROG} ${ARGS} "/srv/media/Movies"		|| ExitCode+=$?
+ismounted "${TVDir}" && "${PROG}" "${ARGS}" --output="/srv/media/humax/TV" --humax --tvdb "/nfs/humax/.TV"	|| ExitCode+=$?
+ismounted "${TVDir}" && "${PROG}" "${ARGS}" --output="/srv/media/humax/Other" --humax  "/nfs/humax"		|| ExitCode+=$?
+ismounted "${TVDir}" && "${PROG}" "${ARGS}" --output="/srv/media/humax/Films" --humax "/nfs/humax/0 Films"	|| ExitCode+=$?
+"${PROG}" "${ARGS}" "/srv/media/TV Shows"	|| ExitCode+=$?
+"${PROG}" "${ARGS}" "/srv/media/Movies"		|| ExitCode+=$?
 #${PROG} ${ARGS} "/srv/media/Recorded/Films"	|| ExitCode+=$?
 #${PROG} ${ARGS} "/srv/media/Recorded/TV"	|| ExitCode+=$?
 #${PROG} ${ARGS} "/srv/media/Recorded/Videos"	|| ExitCode+=$?
