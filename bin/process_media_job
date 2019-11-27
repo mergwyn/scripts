@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#export LOGLEVEL=${LOGLEVEL:-NOTICE}
+export LOGLEVEL=${LOGLEVEL:-NOTICE}
 
 for function in $(dirname "$0")/../functions/*.sh; do . "${function}"; done
 #log_info { echo $* ;}
@@ -8,7 +8,6 @@ for function in $(dirname "$0")/../functions/*.sh; do . "${function}"; done
 
 set -o nounset
 #set -o errexit
-ARGS="$*"
 
 # default values
 HumaxHost=humax
@@ -128,11 +127,11 @@ PROG=$(dirname "$0")/process_media
 ismounted "${TVDir}" && RebuildIgnoreFile
 ismounted "${TVDir}" && RemoveOrphans
 
-ismounted "${TVDir}" && "${PROG}" "${ARGS}" --output="/srv/media/humax/TV" --humax --tvdb "/nfs/humax/.TV"	|| ExitCode+=$?
-ismounted "${TVDir}" && "${PROG}" "${ARGS}" --output="/srv/media/humax/Other" --humax  "/nfs/humax"		|| ExitCode+=$?
-ismounted "${TVDir}" && "${PROG}" "${ARGS}" --output="/srv/media/humax/Films" --humax "/nfs/humax/0 Films"	|| ExitCode+=$?
-"${PROG}" "${ARGS}" "/srv/media/TV Shows"	|| ExitCode+=$?
-"${PROG}" "${ARGS}" "/srv/media/Movies"		|| ExitCode+=$?
+ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/TV" --humax --tvdb "/nfs/humax/.TV"	|| ExitCode+=$?
+ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/Other" --humax  "/nfs/humax"		|| ExitCode+=$?
+ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/Films" --humax "/nfs/humax/0 Films"	|| ExitCode+=$?
+"${PROG}" "$@" "/srv/media/TV Shows"	|| ExitCode+=$?
+"${PROG}" "$@" "/srv/media/Movies"		|| ExitCode+=$?
 #${PROG} ${ARGS} "/srv/media/Recorded/Films"	|| ExitCode+=$?
 #${PROG} ${ARGS} "/srv/media/Recorded/TV"	|| ExitCode+=$?
 #${PROG} ${ARGS} "/srv/media/Recorded/Videos"	|| ExitCode+=$?
