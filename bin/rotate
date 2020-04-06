@@ -1,5 +1,5 @@
 #!/bin/bash
-pictureDir=/srv/media/Pictures
+pictureDir="/home/gary/odrive/Amazon Cloud Drive/Pictures"
 marker=/srv/media/.last_rotated
 startDate=$(mktemp --suffix .rotate)
 function finish {
