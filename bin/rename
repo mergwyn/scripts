@@ -2,3 +2,5 @@
 pictureDir="/home/gary/odrive/Amazon Cloud Drive/Pictures"
 
 find "${pictureDir}" \( -name 'ORG_*' -o -name 'DSC*' -o -name 'IMG*' \) ! -name '*.MOV' -type f -print -exec exiv2 rename -F {} \; 
+find "${pictureDir}" -name '*.jpg' -print0 | xargs -0 rename 's/.jpg$/.jpeg/'
+find "${pictureDir}" -name '*.JPG' -print0 | xargs -0 rename 's/.JPG$/.jpeg/'
