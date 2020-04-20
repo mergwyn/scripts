@@ -9,7 +9,7 @@ trap finish EXIT
 find "${pictureDir}" ${findArgs} -type f -name '*.jpeg' -print |
 while read -r file
 do
-    orientation=$(exiv2 -p v "${file}" 2>/dev/null | sed -n 's:^.*Image.*Orientation.*\([0-9] *[0-9]\)$:\1:p')
+    orientation=$(exiv2 -p v "${file}" 2>/dev/null | sed -n 's:^.*Image.*Orientation.*\([0-9] *[0-9]\)$:\1:p' | head -1)
     case "${orientation}" in
     "1  1"|"")
       #echo "${file}": "${orientation}" OK
