@@ -14,6 +14,11 @@ callapi()
   log_debug call api called with ${_call}
   eval "response=($(eval /opt/puppetlabs/puppet/bin/curl -d \'\{ \"cmd\"\:\"${_call}\" \}\' -s "http://india.theclarkhome.com:34400/api/" |
     jq -r '. | to_entries | .[] | "[\"" + .key + "\"]=" + (.value | @sh)'))"
+  if [[ -v response[@] ]]
+  then
+    log_error "response not set for ${_call}"
+    exit 1
+  fi
   [[ ${response[status]} = "true" ]]
 }
 
