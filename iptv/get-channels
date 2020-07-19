@@ -5,3 +5,5 @@ for service in $(ls "${DIR}"/*.sh 2>/dev/null)
 do
   "${service}"
 done
+
+/opt/scripts/bin/xteve.update
