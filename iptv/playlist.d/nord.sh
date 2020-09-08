@@ -22,7 +22,13 @@ sedscript_rename=
 
 # channels to filtered
 sedscript_filter+='/#EXTM3U/d;'
-sedscript_filter+='/group-title="UK: International/,+1 d;'
+sedscript_filter+='/group-title="UK KIDS/,+1 d;'
+sedscript_filter+='/group-title="UK VIP KIDS/,+1 d;'
+sedscript_filter+='/group-title="UK VIP DOCUMENTARIES/,+1 d;'
+sedscript_filter+='/group-title="UK EPL 3PM/,+1 d;'
+sedscript_filter+='/group-title="UK MUSIC-NEWS/,+1 d;'
+sedscript_filter+='/group-title="UK VIP MUSIC-NEWS/,+1 d;'
+sedscript_filter+='/tvg-name="-----/,+1 d;'
 while read -r pattern
 do
     sedscript_filter+="/$pattern/,+1 p;"
