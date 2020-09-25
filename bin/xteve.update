@@ -2,19 +2,29 @@
 set -o nounset err
 
 
-for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
+# shellcheck source=/dev/null
+for function in "$(dirname "$0")"/../functions/*.sh; do source "${function}"; done
 
 
 declare -A response
-log_info $0 starting
+log_info "$0 starting"
 
 callapi()
 {
+  response=()
   _call=${1}
-  log_debug call api called with ${_call}
-  eval "response=($(eval /opt/puppetlabs/puppet/bin/curl -d \'\{ \"cmd\"\:\"${_call}\" \}\' -s "http://india.theclarkhome.com:34400/api/" |
-    jq -r '. | to_entries | .[] | "[\"" + .key + "\"]=" + (.value | @sh)'))"
-  if [[ -v response[@] ]]
+  log_debug "call api called with ${_call}"
+  json=$(/opt/puppetlabs/puppet/bin/curl -d "{\"cmd\":\"${_call}\"}" -s 'http://india.theclarkhome.com:34400/api/.' | jq -c)
+  log_debug "API response = $json"
+  responsecontent=$(jq -r '. | to_entries | .[] | "[\"" + .key + "\"]=" + (.value | @sh)' <<< "$json")
+
+  # string containing whole definition of response in bash
+  responsedef="response=($responsecontent)"
+
+  # load the definition (because values may contain LF characters, responsedef must be in double quotes)
+  eval "$responsedef"
+
+  if [[ ${#response[*]} = 0 ]]
   then
     log_error "response not set for ${_call}"
     exit 1
@@ -25,12 +35,11 @@ callapi()
 runcmd()
 {
   _cmd=${1}
-  if callapi ${_cmd} 
+  if callapi "${_cmd}"
   then
-    log_info ${_cmd} returned ${response[status]} \
-    exit 0
+    log_info "${_cmd} returned ${response[status]}" 
   else
-    log_error ${_cmd} failed status:${response[status]} err:${response[err]}
+    log_error "${_cmd} failed status:${response[status]} err:${response[err]}"
     exit 1
   fi
 }
@@ -38,5 +47,3 @@ runcmd()
 runcmd update.m3u
 runcmd update.xmltv
 runcmd update.xepg
-
-# vim: sw=2 nu ai
