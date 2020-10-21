@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # functions to support logging
 _xtracewason=
 
@@ -5,10 +6,9 @@ LOGDEST=${LOGDEST:-"auto"}
 DEBUGLOG=${DEBUGLOG:-""}
 declare -i OUTPUTCOUNT=0
 export OUTPUTCOUNT
-if [[ ! ${DEBUGLOG} ]]
-then
-  function _GetxtraceSetting ()   { [[ -o xtrace ]] && _xtracewason="xtracewason" && set +x ; } 2>/dev/null
-  function _ResetxtraceSetting () { [[ -n "${_xtracewason}" ]] && set -x; } 
+if [[ ! ${DEBUGLOG} ]]; then
+  function _GetxtraceSetting ()   { if [[ -o xtrace ]] ; then _xtracewason="xtracewason"; set +x ; fi } 2>/dev/null
+  function _ResetxtraceSetting () { if [[ -n "${_xtracewason}" ]] ; then set -x; fi } 
 else
   function _GetxtraceSetting ()   { :; }
   function _ResetxtraceSetting () { :; } 
@@ -59,7 +59,6 @@ syslog)
   log_err()    { logger -s -t "$(basename $0)[$$]" -p user.err -- "$@"; }
   log_output() { logger -t "$(basename $0)[$$]" -p user.err ; }
   ;;
-  
 stdout)
   log()        { echo "$@" ; }
   log_err()    { >&2 echo "$@" ; }
@@ -73,5 +72,3 @@ stdout)
 esac
 
 #_ResetxtraceSetting;
-
-# vim: sw sw=2 nu
