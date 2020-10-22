@@ -24,18 +24,21 @@ _lxc=$(command -v lxc)
 trap "cleanup; echo 'Unclean exit'" INT SIGHUP SIGINT SIGTERM
 
 # functions
-cleanup () { : }
+cleanup () {
+  : ;
+}
 
 # delete snapshot if it exists
 # Usage: delete_backup <fully qualified snapshot>
 # returns: 0 or 1
 delete_snapshot() {
   local snap="$1"
+  local snapname=${snap%%/}
 
   log_debug "delete_snapshot ${snap}"
 
   # delete snapshot if it exists
-  if lxc info "${host}:${container}" | grep -q "^  ${snap} "; then
+  if lxc info "${snap}" | grep -q "^  ${snapname} "; then
     log_info "Attempting to delete snapshot '${snap}'"
     if ! lxc delete "${snap}" ; then
       log_error "FAILED to delete snapshot ${snap}"
@@ -71,6 +74,7 @@ container_list() {
 declare -i _count=0
 declare -a _remotes
 
+# shellcheck disable=SC2207
 _remotes=( $(remote_list) )
 log_debug "List of remotes to backup: ${_remotes[*]}"
 
