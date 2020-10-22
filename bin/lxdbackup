@@ -2,7 +2,9 @@
 
 # lxdbackup
 #
-# backup up all remote lxd instances using lxc publish
+# Backup up all remote lxd instances using lxc copy
+# First backup is using a snapshot then using --refresh
+#
 # Usage: lxdbackup
 
 # shellcheck source=/dev/null
@@ -11,73 +13,50 @@ for function in "$(dirname "$0")"/../functions/*.sh; do source "${function}"; do
 set -o nounset
 set -o errexit
 
-# Cleanup when exiting unclean
-trap "cleanup; echo 'Unclean exit'" INT SIGHUP SIGINT SIGTERM
-
 # globals variables
 _snapshot=lxdbackup
-_workdir="/var/backups/lxd"
-[[ -d "${_workdir}" ]] || mkdir "${_workdir}" 
 
 # Use these for debugging destructive commands
 _lxc='echo lxc'
 _lxc=$(command -v lxc)
 
+# Cleanup when exiting unclean
+trap "cleanup; echo 'Unclean exit'" INT SIGHUP SIGINT SIGTERM
+
 # functions
-cleanup () {
-  :
-}
-
-set_config() {
-  local container="$1"
-  local key="$2"
-  local value="$3"
-  log_info "Attempting to set $key on '${container}' on local: to $value"
-  if ! ${_lxc} config set "${container}" "${key}" "${value}" ; then
-    log_error "FAILED to set boot.autostart to 'false'"
-    return 1
-  else
-    log_debug "Success -- set boot.autostart to 'false'"
-  fi  
-  return 0
-}
-
+cleanup () { : }
 
 # delete snapshot if it exists
-# Usage: delete_backup host container snapshot
+# Usage: delete_backup <fully qualified snapshot>
 # returns: 0 or 1
 delete_snapshot() {
-  local host="$1"
-  local container="$2"
-  local snap="$3"
+  local snap="$1"
 
-  log_debug "delete_snapshot(${host} ${container} ${snap})"
+  log_debug "delete_snapshot ${snap}"
 
-  # If a snapshot exists for the container on $host, then delete it from $host.
+  # delete snapshot if it exists
   if lxc info "${host}:${container}" | grep -q "^  ${snap} "; then
-    log_info "Attempting to delete snapshot '${host}:${container}/${snap}'"
-    if ! lxc delete "${host}:${container}/${snap}" ; then
-      log_error "FAILED to delete snapshot ${snap} for ${container} on ${host}"
+    log_info "Attempting to delete snapshot '${snap}'"
+    if ! lxc delete "${snap}" ; then
+      log_error "FAILED to delete snapshot ${snap}"
       return 1
     fi
-    log_info "Successfully deleted snapshot ${snap} for ${container} on ${host}"
+    log_info "Successfully deleted snapshot ${snap}"
   fi
   return 0
 }
 
 create_snapshot() {
-  local host="$1"
-  local container="$2"
-  local snap="$3"
-  log_debug "create_snapshot(${host} ${container} ${snap})"
+  local snap="$1"
 
-  # Create a snapshot of the container on $host called "$snap".
-  log_info "Attempting to create snapshot '${host}:${container}/${snap}'"
-  if ! lxc snapshot "${host}:${container}" "${snap}" ; then
-    log_error "FAILED to create snapshot ${snap} for ${container} on ${host}"
+  log_debug "create_snapshot ${snap}"
+
+  log_info "Attempting to create snapshot '${snap}'"
+  if ! lxc snapshot "${snap}" ; then
+    log_error "FAILED to create snapshot ${snap}"
     return 1
   fi
-  log_info "Successfully created snapshot ${snap} for ${container} on ${host}"
+  log_info "Successfully created snapshot ${snap}"
 
   return 0
 }
@@ -91,11 +70,7 @@ container_list() {
 
 declare -i _count=0
 declare -a _remotes
-# For each running container on each lxd_source:
-#   1) Create a snapshot on lxd_source called '$snapshot'.
-#   2) If the container does not exist on the local lxd, copy the container to local:, and we're done with that container.
-#   3) If the container does exist on local:, rsync the source snapshot to the local: container.
-# shellcheck disable=SC2207
+
 _remotes=( $(remote_list) )
 log_debug "List of remotes to backup: ${_remotes[*]}"
 
@@ -103,10 +78,9 @@ for remote in "${_remotes[@]}"; do
   log_info "Backing up remote ${remote}"
 
   declare -a _containers
-  # List of containers on remote. This command will fail if the source is not running
   # shellcheck disable=SC2207
   _containers=( $(container_list) )
-  log_debug "Processing containers: ${_containers[*]}"
+  log_debug "List of containers to backup: ${_containers[*]}"
 
   for container in "${_containers[@]}"; do
     log_info "Backing up container ${container}"
@@ -117,26 +91,25 @@ for remote in "${_remotes[@]}"; do
       refresh=--refresh
     else
       log_debug "${container} doesn't exist on local:, create snapshot"
-      delete_snapshot "${remote}" "${container}" "${_snapshot}" || continue
-      create_snapshot "${remote}" "${container}" "${_snapshot}" || continue
-  
       source="${remote}:${container}/${_snapshot}"
+      delete_snapshot "${source}" || continue
+      create_snapshot "${source}" || continue
+  
       refresh=
     fi
 
     log_info "Attempting to copy '${source}'"
-    log_debug "${_lxc} copy ${source} ${container} ${refresh}"
-    if ${_lxc} copy "${source}" "${container}" ${refresh} ; then
-      log_debug "Success -- copied container"
+    log_debug "${_lxc} copy ${source} ${container} ${refresh} --config boot.autostart=false"
+    if ${_lxc} copy "${source}" "${container}" ${refresh} --config "boot.autostart=false"; then
+      log_debug "Success -- copied ${source}"
     else
-      log_error "FAILED to copy container, ABORTING BACKUP of container"
+      log_error "FAILED to copy ${source}, ABORTING BACKUP"
       continue
     fi  
 
-    # Set boot.autostart on backed up container to 'false'.
-    set_config "${container}" boot.autostart false 
-
-    delete_snapshot "${remote}" "${container}" "${_snapshot}" || continue
+    if [[ -z "${refresh}" ]] ; then
+      delete_snapshot "${source}" || continue
+    fi
 
     _count+=1
     log_debug "--------------------------------------------"
