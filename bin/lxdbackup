@@ -103,8 +103,8 @@ for remote in "${_remotes[@]}"; do
     fi
 
     log_info "Attempting to copy '${source}'"
-    log_debug "${_lxc} copy ${source} ${container} ${refresh} --config boot.autostart=false"
-    if ${_lxc} copy "${source}" "${container}" ${refresh} --config "boot.autostart=false"; then
+    log_debug "${_lxc} copy ${source} ${container} ${refresh} --stateless --config boot.autostart=false"
+    if ${_lxc} copy "${source}" "${container}" ${refresh} --stateless --config "boot.autostart=false"; then
       log_debug "Success -- copied ${source}"
     else
       log_error "FAILED to copy ${source}, ABORTING BACKUP"
