@@ -33,12 +33,23 @@ cleanup () {
 # returns: 0 or 1
 delete_snapshot() {
   local snap="$1"
-  local snapname=${snap%%/}
+  local container=${snap%%/*}
+  local snapname=${snap##*/}
 
-  log_debug "delete_snapshot ${snap}"
+  if [[ -z ${snapname} ]] ; then
+    log_error "FAILED to get snapname from $snap"
+    return 2
+  fi
+
+  if [[ -z ${container} ]] ; then
+    log_error "FAILED to get container from $snap"
+    return 2
+  fi
+
+  log_debug "delete_snapshot ${snap} for ${container} with name ${snapname}"
 
   # delete snapshot if it exists
-  if lxc info "${snap}" | grep -q "^  ${snapname} "; then
+  if lxc info "${container}" | grep -q "^  ${snapname} "; then
     log_info "Attempting to delete snapshot '${snap}'"
     if ! lxc delete "${snap}" ; then
       log_error "FAILED to delete snapshot ${snap}"
@@ -104,9 +115,13 @@ for remote in "${_remotes[@]}"; do
       refresh=
     fi
 
+    # TODO work out which target pool to use?
+    # eg always use 1st one?
+    # lxc storage list --format=csv | cut -d ',' -f 1 | head -1
     log_notice "Attempting to copy '${source}'"
-    log_debug "${_lxc} copy ${source} ${container} ${refresh} --stateless --config boot.autostart=false"
-    if ${_lxc} copy "${source}" "${container}" ${refresh} --stateless --config "boot.autostart=false"; then
+    copy_args="--stateless --config=boot.autostart=false --storage default"
+    log_debug "${_lxc} copy ${source} ${container} ${refresh} ${copy_args}"
+    if ${_lxc} copy "${source}" "${container}" ${refresh} ${copy_args}; then
       log_debug "Success -- copied ${source}"
     else
       log_error "FAILED to copy ${source}, ABORTING BACKUP"
