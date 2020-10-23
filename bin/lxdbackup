@@ -71,7 +71,8 @@ container_list() {
   lxc list -c ns "${remote}:" | awk '!/NAME/{ if ( $4 == "RUNNING" ) print $2}';
 }
 
-declare -i _count=0
+declare -i _count
+declare -i _total_count
 declare -a _remotes
 
 # shellcheck disable=SC2207
@@ -79,15 +80,16 @@ _remotes=( $(remote_list) )
 log_debug "List of remotes to backup: ${_remotes[*]}"
 
 for remote in "${_remotes[@]}"; do
-  log_info "Backing up remote ${remote}"
+  log_notice "Backing up remote ${remote}"
 
   declare -a _containers
+  _count=0
   # shellcheck disable=SC2207
   _containers=( $(container_list) )
   log_debug "List of containers to backup: ${_containers[*]}"
 
   for container in "${_containers[@]}"; do
-    log_info "Backing up container ${container}"
+    log_notice "Backing up container ${container}"
 
     # Check if container exists on local:.
     if [[ -n $(lxc list "^${container}\$" -c n --format=csv) ]] ; then
@@ -102,7 +104,7 @@ for remote in "${_remotes[@]}"; do
       refresh=
     fi
 
-    log_info "Attempting to copy '${source}'"
+    log_notice "Attempting to copy '${source}'"
     log_debug "${_lxc} copy ${source} ${container} ${refresh} --stateless --config boot.autostart=false"
     if ${_lxc} copy "${source}" "${container}" ${refresh} --stateless --config "boot.autostart=false"; then
       log_debug "Success -- copied ${source}"
@@ -118,5 +120,7 @@ for remote in "${_remotes[@]}"; do
     _count+=1
     log_debug "--------------------------------------------"
   done
-  log_info "Backup of ${remote} complete, $_count containers backed up"
+  log_notice "Backup of ${remote} complete, $_count containers backed up"
+  _total_count+=${_count}
 done
+log_notice "lxdbackup complete, $_total_count containers backed up"
