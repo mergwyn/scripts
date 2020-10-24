@@ -12,13 +12,12 @@ for function in "$(dirname "$0")"/../functions/*.sh; do source "${function}"; do
 
 set -o nounset
 set -o errexit
+set -o pipefail
 
-# globals variables
+# global variables
 _snapshot=lxdbackup
-
-# Use these for debugging destructive commands
-_lxc='echo lxc'
 _lxc=$(command -v lxc)
+_dryrun=
 
 # Cleanup when exiting unclean
 trap "cleanup; echo 'Unclean exit'" INT SIGHUP SIGINT SIGTERM
@@ -27,6 +26,52 @@ trap "cleanup; echo 'Unclean exit'" INT SIGHUP SIGINT SIGTERM
 cleanup () {
   : ;
 }
+
+usage() {
+  cat <<EOF >&2
+$0: <flags> 
+Allowed flags are:
+-l|--log=<CRITICAL|ERROR|WARN|NOTIFY|INFO|DEBUG> default WARN
+-n|--dry-run                                    print commands as if they would be executed
+--help                                          this message
+EOF
+}
+
+params="$(getopt -o l:n --long dry-run,log:,help --name "$0" -- "$@")"
+eval set -- "$params"
+
+while true ; do
+  case "$1" in
+    -l|--log)
+      enumLogLevel "$2"
+      # shellcheck disable=SC2034
+      LOGLEVEL="$2"
+      shift 2;;
+    -n|--dry-run)
+      _dryrun=dryrun
+      shift;;
+    --help)
+      usage
+      exit 0;;
+    --)
+      shift
+      break ;;
+    *)
+      log_critical "Not implemented: $1" 
+      usage
+      exit 1;;
+  esac
+done
+
+if [[ $# != 0 ]] ; then
+  log_critical "Command line arguments found: $*"
+  usage
+  exit 1
+fi
+
+if [[ "${_dryrun}" ]] ; then
+  _lxc="echo ${_lxc}"
+fi
 
 # delete snapshot if it exists
 # Usage: delete_backup <fully qualified snapshot>
@@ -86,8 +131,13 @@ declare -i _count
 declare -i _total_count
 declare -a _remotes
 
-# shellcheck disable=SC2207
-_remotes=( $(remote_list) )
+pool=$(lxc storage list --format=csv | cut -d ',' -f 1 | head -1)
+if [[ -z ${pool} ]] ; then
+  log_critical "FAILED to get storage pool for ${remote}"
+  exit 1
+fi
+
+mapfile -t _remotes < <(remote_list)
 log_debug "List of remotes to backup: ${_remotes[*]}"
 
 for remote in "${_remotes[@]}"; do
@@ -95,8 +145,8 @@ for remote in "${_remotes[@]}"; do
 
   declare -a _containers
   _count=0
-  # shellcheck disable=SC2207
-  _containers=( $(container_list) )
+
+  mapfile -t _containers < <(container_list)
   log_debug "List of containers to backup: ${_containers[*]}"
 
   for container in "${_containers[@]}"; do
@@ -119,8 +169,9 @@ for remote in "${_remotes[@]}"; do
     # eg always use 1st one?
     # lxc storage list --format=csv | cut -d ',' -f 1 | head -1
     log_notice "Attempting to copy '${source}'"
-    copy_args="--stateless --config=boot.autostart=false --storage default"
+    copy_args="--stateless --config=boot.autostart=false --storage ${pool}"
     log_debug "${_lxc} copy ${source} ${container} ${refresh} ${copy_args}"
+    # shellcheck disable=SC2086
     if ${_lxc} copy "${source}" "${container}" ${refresh} ${copy_args}; then
       log_debug "Success -- copied ${source}"
     else
