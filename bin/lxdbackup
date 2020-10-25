@@ -17,7 +17,9 @@ set -o pipefail
 # global variables
 _snapshot=lxdbackup
 _lxc=$(command -v lxc)
-_dryrun=
+dryrun(){
+  _lxc="echo DRYRUN:${_lxc}"
+}
 
 # Cleanup when exiting unclean
 trap "cleanup; echo 'Unclean exit'" INT SIGHUP SIGINT SIGTERM
@@ -42,24 +44,11 @@ eval set -- "$params"
 
 while true ; do
   case "$1" in
-    -l|--log)
-      enumLogLevel "$2"
-      # shellcheck disable=SC2034
-      LOGLEVEL="$2"
-      shift 2;;
-    -n|--dry-run)
-      _dryrun=dryrun
-      shift;;
-    --help)
-      usage
-      exit 0;;
-    --)
-      shift
-      break ;;
-    *)
-      log_critical "Not implemented: $1" 
-      usage
-      exit 1;;
+    -l|--log)     enumLogLevel "$2"; export LOGLEVEL="$2"; shift 2;;
+    -n|--dry-run) dryrun; shift;;
+    --help)       usage; exit 0;;
+    --)           shift; break ;;
+    *)            log_critical "Not implemented: $1"; usage; exit 1;;
   esac
 done
 
@@ -69,34 +58,18 @@ if [[ $# != 0 ]] ; then
   exit 1
 fi
 
-if [[ "${_dryrun}" ]] ; then
-  _lxc="echo ${_lxc}"
-fi
-
 # delete snapshot if it exists
-# Usage: delete_backup <fully qualified snapshot>
-# returns: 0 or 1
 delete_snapshot() {
-  local snap="$1"
-  local container=${snap%%/*}
-  local snapname=${snap##*/}
+  local container="$1"
+  local snapname="$2"
+  local snap="${container}/${snapname}"
 
-  if [[ -z ${snapname} ]] ; then
-    log_error "FAILED to get snapname from $snap"
-    return 2
-  fi
-
-  if [[ -z ${container} ]] ; then
-    log_error "FAILED to get container from $snap"
-    return 2
-  fi
-
-  log_debug "delete_snapshot ${snap} for ${container} with name ${snapname}"
+  log_debug "delete_snapshot ${container} ${snapname}"
 
   # delete snapshot if it exists
   if lxc info "${container}" | grep -q "^  ${snapname} "; then
     log_info "Attempting to delete snapshot '${snap}'"
-    if ! lxc delete "${snap}" ; then
+    if ! ${_lxc} delete "${snap}" ; then
       log_error "FAILED to delete snapshot ${snap}"
       return 1
     fi
@@ -106,17 +79,40 @@ delete_snapshot() {
 }
 
 create_snapshot() {
-  local snap="$1"
+  local container="$1"
+  local snapname="$2"
+  local snap="${container}/${snapname}"
 
-  log_debug "create_snapshot ${snap}"
+  log_debug "create_snapshot ${container} ${snapname}"
+
+  delete_snapshot "${container}" "${snapname}" || return 1
 
   log_info "Attempting to create snapshot '${snap}'"
-  if ! lxc snapshot "${snap}" ; then
+  if ! ${_lxc} snapshot "${snap}" ; then
     log_error "FAILED to create snapshot ${snap}"
-    return 1
+    return 2
   fi
   log_info "Successfully created snapshot ${snap}"
 
+  return 0
+}
+
+copy_container() {
+  local source="$1"
+  local container="$2"
+  local pool="$3"
+  local refresh="$4"
+  local copy_args="--stateless --config=boot.autostart=false --storage ${pool} ${refresh}"
+
+  log_notice "Attempting to copy '${source}'"
+  log_debug "${_lxc} copy ${source} ${container} ${copy_args}"
+
+  # shellcheck disable=SC2086
+  if ! ${_lxc} copy "${source}" "${container}" ${copy_args}; then
+    log_error "FAILED to copy ${source}, ABORTING BACKUP"
+    return 1
+  fi  
+  log_debug "Success -- copied ${source}"
   return 0
 }
 
@@ -127,12 +123,13 @@ container_list() {
   lxc list -c ns "${remote}:" | awk '!/NAME/{ if ( $4 == "RUNNING" ) print $2}';
 }
 
-declare -i _count
-declare -i _total_count
+declare -i _remote_count
+declare -i _backedup_count
+declare -i _container_count
 declare -a _remotes
 
-pool=$(lxc storage list --format=csv | cut -d ',' -f 1 | head -1)
-if [[ -z ${pool} ]] ; then
+_pool=$(lxc storage list --format=csv | cut -d ',' -f 1 | head -1)
+if [[ -z ${_pool} ]] ; then
   log_critical "FAILED to get storage pool for ${remote}"
   exit 1
 fi
@@ -144,49 +141,37 @@ for remote in "${_remotes[@]}"; do
   log_notice "Backing up remote ${remote}"
 
   declare -a _containers
-  _count=0
+  _remote_count=0
 
   mapfile -t _containers < <(container_list)
   log_debug "List of containers to backup: ${_containers[*]}"
+  _container_count+=${#_containers[@]}
 
   for container in "${_containers[@]}"; do
     log_notice "Backing up container ${container}"
 
-    # Check if container exists on local:.
-    if [[ -n $(lxc list "^${container}\$" -c n --format=csv) ]] ; then
-      source="${remote}:${container}"
-      refresh=--refresh
-    else
+# Check if container exists on local.
+# If it does then make an initial copy of the container from a snapshot
+# This is because making a copy of a running container using criu doesn't work for some reason
+    if [[ -z $(lxc list "^${container}\$" -c n --format=csv) ]] ; then
       log_debug "${container} doesn't exist on local:, create snapshot"
-      source="${remote}:${container}/${_snapshot}"
-      delete_snapshot "${source}" || continue
-      create_snapshot "${source}" || continue
+      create_snapshot "${remote}:${container}" ${_snapshot} || continue
+
+      copy_container "${remote}:${container}/${_snapshot}" "${container}" "${_pool}" "" || continue
+
+      delete_snapshot "${remote}:${container}" "${_snapshot}" || continue
+    fi
   
-      refresh=
-    fi
+    copy_container "${remote}:${container}" "${container}" "${_pool}" --refresh || continue
 
-    # TODO work out which target pool to use?
-    # eg always use 1st one?
-    # lxc storage list --format=csv | cut -d ',' -f 1 | head -1
-    log_notice "Attempting to copy '${source}'"
-    copy_args="--stateless --config=boot.autostart=false --storage ${pool}"
-    log_debug "${_lxc} copy ${source} ${container} ${refresh} ${copy_args}"
-    # shellcheck disable=SC2086
-    if ${_lxc} copy "${source}" "${container}" ${refresh} ${copy_args}; then
-      log_debug "Success -- copied ${source}"
-    else
-      log_error "FAILED to copy ${source}, ABORTING BACKUP"
-      continue
-    fi  
-
-    if [[ -z "${refresh}" ]] ; then
-      delete_snapshot "${source}" || continue
-    fi
-
-    _count+=1
+    _remote_count+=1
     log_debug "--------------------------------------------"
   done
-  log_notice "Backup of ${remote} complete, $_count containers backed up"
-  _total_count+=${_count}
+
+  log_notice "Backup of ${remote} complete, $_remote_count containers backed up"
+  _backedup_count+=${_remote_count}
+
 done
-log_notice "lxdbackup complete, $_total_count containers backed up"
+log_notice "lxdbackup complete, $_backedup_count containers backed up out of $_container_count"
+
+exit $(( _container_count - _backedup_count ))
