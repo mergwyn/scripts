@@ -1,6 +1,0 @@
-. log
-
-LOGLEVEL=DEBUG
-log_debug debug message
-log_info infor message
-log_critical critical message

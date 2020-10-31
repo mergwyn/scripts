@@ -4,7 +4,7 @@ set -o nounset
 #set -o errexit
 
 LOGLEVEL=${LOGLEVEL:-NOTICE}
-DELAY=${DELAY:-60}
+DELAY=${DELAY:-300}
 
 for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
 
