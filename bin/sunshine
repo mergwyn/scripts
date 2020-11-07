@@ -1,34 +1,42 @@
 #!/usr/bin/env bash
-location="-l N52 -L W01 -z 0"
+declare -A location
+#location['-l']='N52'
+#location['-L']='W01'
+#location['-z']='0'
+
 Usage()
 {
   cat <<EOF >&2
 $0: <flags> 
 Allowed flags are:
---simple      Just print day/night rather than times
---help        This message
+--simple|-s Just print day/night rather than times
+-l <lat>    Latidue (see hdate)
+-L <long>   Longitude (see hdate)
+-z <tz>     timezone, +/- UTC (see hdate)
+--help      This message
 EOF
 }
 
-params="$(getopt -o s --long simple,help --name "$0" -- "$@")"
+params="$(getopt -o l:L:sz: --long simple,help --name "$0" -- "$@")"
 eval set -- "$params"
 
 while true ; do
   case "$1" in
     --simple|-s) simple=simple; shift;;
+    -l|-L|-z)    location["$1"]="$2"; shift 2;;
     --help)      Usage; exit 0;;
     --)          shift; break ;;
     *)           echo >&2 "Not implemented: $1" ; Usage; exit 1;;
   esac
 done
 
-# shellcheck disable=SC2086
+# shellcheck disable=SC2046
 while read -r label time ; do
   case ${label} in
   sunrise:) sunrise=${time};;
   sunset:)  sunset=${time};;
   esac
-done < <(hdate -s -q ${location})
+done < <(hdate -s -q $(for k in "${!location[@]}"; do printf "%s %s\n" "$k" "${location[$k]}" ; done))
 
 
 if [[ -n ${simple} ]] ; then
