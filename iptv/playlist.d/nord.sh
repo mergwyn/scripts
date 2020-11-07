@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 
 set -o nounset
-#set -o errexit
+set -o errexit
+set -o pipefail
+
 XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 
 DATA="$(dirname "${0}")"/../iptv_urls
-if [[ -f "${DATA}" ]]
-then
+if [[ -f "${DATA}" ]] ; then
   # shellcheck disable=1090
   . "${DATA}" 
 else
@@ -29,17 +30,16 @@ sedscript_filter+='/group-title="UK EPL 3PM/,+1 d;'
 sedscript_filter+='/group-title="UK MUSIC-NEWS/,+1 d;'
 sedscript_filter+='/group-title="UK VIP MUSIC-NEWS/,+1 d;'
 sedscript_filter+='/tvg-name="-----/,+1 d;'
-while read -r pattern
-do
-    sedscript_filter+="/$pattern/,+1 p;"
+
+while read -r pattern ; do
+  sedscript_filter+="/$pattern/,+1 p;"
 done <<EOF
 group-title=\"UK
 EOF
 
 # channels to be mapped
-while IFS='~' read -r pattern1 pattern2
-do
-    sedscript_rename+="s~$pattern1~$pattern2~g;"
+while IFS='~' read -r pattern1 pattern2 ; do
+  sedscript_rename+="s~$pattern1~$pattern2~g;"
 done <<EOF
 EOF
 
@@ -54,7 +54,6 @@ getChannelNumber()
   echo $num
 }
 
-
 addchannels()
 {
   SERVICE=$1
@@ -66,27 +65,25 @@ addchannels()
 
   exec > "${OUTPUT}"
   echo "#EXTM3U"
-  $curl -s "${URL}" |
-  sed -n -e "${sedscript_filter}" |
-  sed -e "${sedscript_rename}" |
-  while read -r line
-  do
-    #channelID=$(echo  $line | sed 's/^.*tvg-name="\([^"]*\)\" .*$/\1/')
-    # shellcheck disable=2001
-    channelID=$(echo  "${line}" | sed  's/.*,\(.*\)$/\1/')
-    channel=$(getChannelNumber "${channelID}")
-    if [[ $channel = 0 ]] 
-    then
-      echo "${channelID}" >> "${CHANNELS}"
-      channel=$(getChannelNumber "${channelID}")
-    fi
+  $curl -s "${URL}" \
+    | sed -n -e "${sedscript_filter}" \
+    | sed -e "${sedscript_rename}" \
+    | while read -r line ; do
+        #channelID=$(echo  $line | sed 's/^.*tvg-name="\([^"]*\)\" .*$/\1/')
+        # shellcheck disable=2001
+        channelID=$(echo  "${line}" | sed  's/.*,\(.*\)$/\1/')
+        channel=$(getChannelNumber "${channelID}")
+        if [[ $channel = 0 ]] ; then
+          echo "${channelID}" >> "${CHANNELS}"
+          channel=$(getChannelNumber "${channelID}")
+        fi
 
-    # shellcheck disable=2001
-    echo "${line}" |
-      sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" #-e 's/\(group-title=".*\)",/\1|H264-AAC",/'
-    read -r line
-    echo "${line}"
-  done 
+        # shellcheck disable=2001
+        echo "${line}" \
+          | sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" #-e 's/\(group-title=".*\)",/\1|H264-AAC",/'
+        read -r line
+        echo "${line}"
+      done 
 }
 
 #echo ${sedscript}
