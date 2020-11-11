@@ -4,6 +4,8 @@ set -o nounset
 set -o errexit
 set -o pipefail
 
+LOGLEVEL=${LOGLEVEL:-"INFO"}
+
 # shellcheck disable=1090
 source "$(dirname "${0}")"/../../functions/log.sh
 
