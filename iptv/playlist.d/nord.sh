@@ -51,53 +51,69 @@ EOF
 getChannelNumber() {
   local pattern
   local num
+  local channels=${XMLTV}/${service}.channels
+  local -i matches=0
+  log_debug "channels=$channels"
+
+  [[ -f "${channels}" ]] || touch "${channels}"
+
   # shellcheck disable=2001
   pattern=$(echo "$*" | sed 's/\*/\\*/g')
-  num=$(grep -ne "^$pattern\$" "${CHANNELS}" | grep -Eo '^[^:]+')
-  [[ $num -eq "" ]] && num=0
+  num=$(grep -ne "^$pattern\$" "${channels}" | grep -Eo '^[^:]+')
+  matches=$(echo -n "$num" | grep -c '^')
+
+  case ${matches} in
+  0) num=0;;
+  1) ;;
+  *) log_error "There were $matches found for $*"; exit 1;;
+  esac
+
   echo $num
+}
+
+readInputM3U() {
+  local url="$1"
+  $curl -s "${url}" \
+    | sed -n -e "${sedscript_filter}" \
+    | sed -e "${sedscript_rename}"
 }
 
 addchannels()
 {
-  SERVICE=$1
-  URL=$2
-  OUTPUT=${XMLTV}/${SERVICE}.m3u
-  CHANNELS=${XMLTV}/${SERVICE}.channels
+  local service=$1
+  local url=$2
+  local output=${XMLTV}/${service}.m3u
+  local -i channelCount=0
 
-  log_info "Adding $SERVICE channels from $URL"
-  log_debug "OUTPUT=$OUTPUT"
-  log_debug "CHANNELS=$CHANNELS"
+  log_info "Adding $service channels from $url"
+  log_debug "output=$output"
 
-  [[ -f "${CHANNELS}" ]] || touch "${CHANNELS}"
 
-  echo "#EXTM3U" > "${OUTPUT}"
-  $curl -s "${URL}" \
-    | sed -n -e "${sedscript_filter}" \
-    | sed -e "${sedscript_rename}" \
-    | while read -r line ; do
-        # shellcheck disable=2001
-        channelID=$(echo  "${line}" | sed  's/.*,\(.*\)$/\1/')
-        log_debug "Got channelID ${channelID}"
-        channel=$(getChannelNumber "${channelID}")
-        log_debug "Got channel ${channel}"
-        if [[ $channel = 0 ]] ; then
-          log_notice "new channel found: ${channelID}"
-          echo "${channelID}" >> "${CHANNELS}"
-          channel=$(getChannelNumber "${channelID}")
-        fi
+  echo "#EXTM3U" > "${output}"
+  while read -r line ; do
+    # shellcheck disable=2001
+    channelID=$(echo  "${line}" | sed  's/.*,\(.*\)$/\1/')
+    log_debug "Got channelID ${channelID}"
+    channel=$(getChannelNumber "${channelID}")
+    log_debug "Got channel ${channel}"
+    if [[ $channel = 0 ]] ; then
+      log_notice "new channel found: ${channelID}"
+      echo "${channelID}" >> "${channels}"
+      channel=$(getChannelNumber "${channelID}")
+    fi
 
-        # shellcheck disable=2001
-        printf '%s\n' "$line" | sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" >> "${OUTPUT}"
+    # shellcheck disable=2001
+    printf '%s\n' "$line" | sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" >> "${output}"
 
-        # Get the next line contaiing the URL
-        read -r line
-        echo "${line}" >> "${OUTPUT}"
-      done 
+    # Get the next line contaiing the url
+    read -r line
+    echo "${line}" >> "${output}"
+    channelCount+=1
+  done  < <(readInputM3U "${url}")
 
-  outputLines=$(wc -l "${OUTPUT}" | cut -d ' ' -f 1)
-  if [[ ${outputLines} -le 1 ]] ; then
-    log_error "Only found ${outputLines} processing $SERVICE"
+  log_info "Found $channelCount channels"
+  if [[ ${channelCount} -eq 0 ]] ; then
+    log_error "No channels found"
     exit 1
   fi
 }
