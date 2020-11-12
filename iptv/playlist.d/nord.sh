@@ -12,6 +12,10 @@ source "$(dirname "${0}")"/../../functions/log.sh
 XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 
+TMPFILE=$(mktemp --suffix .m3u)
+function finish { rm -rf "${TMPFILE}"; }
+
+
 DATA="$(dirname "${0}")"/../iptv_urls
 if [[ -f "${DATA}" ]] ; then
   # shellcheck disable=1090
@@ -89,7 +93,7 @@ addchannels()
   log_debug "output=$output"
 
 
-  echo "#EXTM3U" > "${output}"
+  echo "#EXTM3U" > "${TMPFILE}"
   while read -r line ; do
     # shellcheck disable=2001
     channelID=$(echo  "${line}" | sed  's/.*,\(.*\)$/\1/')
@@ -103,11 +107,11 @@ addchannels()
     fi
 
     # shellcheck disable=2001
-    printf '%s\n' "$line" | sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" >> "${output}"
+    printf '%s\n' "$line" | sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" >> "${TMPFILE}"
 
     # Get the next line contaiing the url
     read -r line
-    echo "${line}" >> "${output}"
+    echo "${line}" >> "${TMPFILE}"
     channelCount+=1
   done  < <(readInputM3U "${url}")
 
@@ -116,7 +120,7 @@ addchannels()
     log_error "No channels found"
     exit 1
   fi
+  cp "${TMPFILE}" "${output}"
 }
 
 addchannels nord "${URL}"
-
