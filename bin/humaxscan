@@ -4,66 +4,68 @@ set -o nounset
 #set -o errexit
 
 LOGLEVEL=${LOGLEVEL:-NOTICE}
-DELAY=${DELAY:-300}
+wait=${wait:-60}
+delay=$delay:-5}
 
-for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
+here=$(dirname "$0")
+me=$(basename "$0")
+# shellcheck disable=1090
+for function in "$here/../functions/"*.sh; do . "${function}"; done
 
 # log to stdout or syslog
 log()     { echo "$@" ; }
 log_err() { >&2 echo "$@" ; }
 
 # default values
-HumaxHost=humax
-HumaxExport="${HumaxHost}:/mnt/hd2/My Video"
+humaxHost=humax
+HumaxExport="${humaxHost}:/mnt/hd2/My Video"
 NFSopts="rw,nosuid,soft,noatime,nolock,intr,rsize=131072,wsize=131072,noauto"
-User=root
-State=
-HumaxShare=/nfs/${HumaxHost}
-[[ -f ${HumaxShare} ]] || mkdir -p "${HumaxShare}"
+user=root
+state=
+humaxShare=/nfs/${humaxHost}
+[[ -f ${humaxShare} ]] || mkdir -p "${humaxShare}"
 
-isalive() { ping -c 1 $1 > /dev/null 2>&1; }
+isalive() { ping -c 1 "$1" > /dev/null 2>&1; }
 ismounted() { grep -qs "$1" /proc/mounts; }
 
-if [[ "$(whoami)" != "${User}" ]]
-then
-  log_critical "$(basename $0) must be run as user: ${User}"
+if [[ "$(whoami)" != "${user}" ]] ; then
+  log_critical "$me must be run as user: ${user}"
   exit 1
 fi
 
-log_notice watching for $HumaxHost, delay is $DELAY, PPID=$PPID
-while true
-do
-  if isalive "${HumaxHost}"
-  then
-    if [[ $State != up ]]
-    then
-      log_notice $HumaxHost is up
-      if ismounted "${HumaxShare}"
-      then
-        log_warn "${HumaxShare}" is already mounted
-      else
-	log_notice "Mounting ${HumaxShare}"
-	mount -t nfs -o "${NFSopts}" "${HumaxExport}" "${HumaxShare}"
-	log_debug "mount ${HumaxShare} returned $?"
+log_notice "watching for $humaxHost, delay is $wait, PPID=$PPID"
+declare -i count=0
+while true ; do
+  if isalive "${humaxHost}" ; then
+    if [[ ${count} -ge ${delay} ]] ; then
+      if [[ $state != up ]] ; then
+        log_notice $humaxHost is up
+        if ismounted "${humaxShare}" ; then
+          log_warn "${humaxShare}" is already mounted
+        else
+          log_notice "Mounting ${humaxShare}"
+          mount -t nfs -o "${NFSopts}" "${HumaxExport}" "${humaxShare}"
+          log_debug "mount ${humaxShare} returned $?"
+        fi
       fi
+      state=up
+    else
+      count+=1
+      log_info "Waiting for $humaxHost to quiesce, count=$count"
     fi
-    State=up
   else
-    if [[ $State != down ]]
-    then 
-      log_notice $HumaxHost is down
-      if ismounted "${HumaxShare}"
-      then
+    if [[ $state != down ]] ; then 
+      log_notice $humaxHost is down
+      if ismounted "${humaxShare}" ; then
 	log_notice umounting humax share
-	umount -l "${HumaxShare}"
+	umount -l "${humaxShare}"
       else
-        log_warn $HumaxHost  changed to down but "${HumaxShare}" is not mounted
+        log_warn $humaxHost changed to down but "${humaxShare}" is not mounted
       fi
-      State=down
+      state=down
+      count=0
     fi
   fi
-  sleep $DELAY
+  sleep "$wait"
 done
 log_notice "Complete"
-
-# vim: sw=2 nu ai
