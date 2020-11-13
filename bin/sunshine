@@ -8,16 +8,21 @@ Usage()
 {
   cat <<EOF >&2
 $0: <flags> 
-Allowed flags are:
---simple|-s Just print day/night rather than times
--l <lat>    Latidue (see hdate)
--L <long>   Longitude (see hdate)
--z <tz>     timezone, +/- UTC (see hdate)
---help      This message
+OPTIONS:
+  -s --simple Just print day/night rather than times
+  -z nn       timezone, +/-UTC
+  -l yy       latitude yy degrees. Negative values are South
+  -L xx       longitude xx degrees. Negative values are West
+  --help      This message
 EOF
 }
 
 params="$(getopt -o l:L:sz: --long simple,help --name "$0" -- "$@")"
+if [[ $? != 0 ]] ; then
+    echo >&2 "Not implemented: $1"
+    Usage
+    exit 1
+fi
 eval set -- "$params"
 
 while true ; do
@@ -26,7 +31,6 @@ while true ; do
     -l|-L|-z)    location["$1"]="$2"; shift 2;;
     --help)      Usage; exit 0;;
     --)          shift; break ;;
-    *)           echo >&2 "Not implemented: $1" ; Usage; exit 1;;
   esac
 done
 
