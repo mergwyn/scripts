@@ -4,8 +4,8 @@ set -o nounset
 #set -o errexit
 
 LOGLEVEL=${LOGLEVEL:-NOTICE}
-wait=${wait:-60}
-delay=$delay:-5}
+sleep=${sleep:-120}
+delay=${delay:-360}
 
 here=$(dirname "$0")
 me=$(basename "$0")
@@ -33,11 +33,11 @@ if [[ "$(whoami)" != "${user}" ]] ; then
   exit 1
 fi
 
-log_notice "watching for $humaxHost, delay is $wait, PPID=$PPID"
-declare -i count=0
+log_notice "watching for $humaxHost, sleep is $sleep, PPID=$PPID"
+declare -i countdown=0
 while true ; do
   if isalive "${humaxHost}" ; then
-    if [[ ${count} -ge ${delay} ]] ; then
+    if [[ ${countdown} -ge ${delay} ]] ; then
       if [[ $state != up ]] ; then
         log_notice $humaxHost is up
         if ismounted "${humaxShare}" ; then
@@ -50,8 +50,8 @@ while true ; do
       fi
       state=up
     else
-      count+=1
-      log_info "Waiting for $humaxHost to quiesce, count=$count"
+      log_info "Waiting for $humaxHost to quiesce, countdown=$countdown"
+      countdown+=${sleep}
     fi
   else
     if [[ $state != down ]] ; then 
@@ -63,9 +63,9 @@ while true ; do
         log_warn $humaxHost changed to down but "${humaxShare}" is not mounted
       fi
       state=down
-      count=0
+      countdown=0
     fi
   fi
-  sleep "$wait"
+  sleep "$sleep"
 done
 log_notice "Complete"
