@@ -55,15 +55,14 @@ EOF
 getChannelNumber() {
   local pattern
   local num
-  local channels=${XMLTV}/${service}.channels
   local -i matches=0
-  log_debug "channels=$channels"
+  log_debug "channels=$CHANNELS"
 
-  [[ -f "${channels}" ]] || touch "${channels}"
+  [[ -f "${CHANNELS}" ]] || touch "${CHANNELS}"
 
   # shellcheck disable=2001
   pattern=$(echo "$*" | sed 's/\*/\\*/g')
-  num=$(grep -ne "^$pattern\$" "${channels}" | grep -Eo '^[^:]+')
+  num=$(grep -ne "^$pattern\$" "${CHANNELS}" | grep -Eo '^[^:]+')
   matches=$(echo -n "$num" | grep -c '^')
 
   case ${matches} in
@@ -102,7 +101,7 @@ addchannels()
     log_debug "Got channel ${channel}"
     if [[ $channel = 0 ]] ; then
       log_notice "new channel found: ${channelID}"
-      echo "${channelID}" >> "${channels}"
+      echo "${channelID}" >> "${CHANNELS}"
       channel=$(getChannelNumber "${channelID}")
     fi
 
@@ -123,4 +122,5 @@ addchannels()
   cp "${TMPFILE}" "${output}"
 }
 
+CHANNELS=${XMLTV}/nord.channels
 addchannels nord "${URL}"
