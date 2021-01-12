@@ -76,7 +76,7 @@ getChannelNumber() {
 
 readInputM3U() {
   local url="$1"
-  $curl --no-progress-meter "${url}" \
+  $curl --no-progress-meter --connect-timeout 30 "${url}" \
     | sed -n -e "${sedscript_filter}" \
     | sed -e "${sedscript_rename}"
 }
