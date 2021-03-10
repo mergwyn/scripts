@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 DIR="$(dirname $0)/epg.d"
 for service in $(ls "${DIR}"/*.sh 2>/dev/null)
