@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -o nounset
+#set -o xtrace
 set -o errexit
 set -o pipefail
 
@@ -12,7 +13,9 @@ source "$(dirname "${0}")"/../../functions/log.sh
 XMLTV=/srv/media/xmltv
 curl=/opt/puppetlabs/puppet/bin/curl
 
-TMPFILE=$(mktemp --suffix .m3u)
+TMPFILE=$(mktemp --directory --suffix nord)
+_input_playlist=${TMPFILE}/nord.m3u
+_output_playlist=${TMPFILE}/new.m3u
 function finish { rm -rf "${TMPFILE}"; }
 trap finish EXIT
 
@@ -74,11 +77,11 @@ getChannelNumber() {
   echo $num
 }
 
+#$curl --no-progress-meter --show-error -o /tmp/curl "${URL}"  
+#ls -l /tmp/curl
+
 readInputM3U() {
   local url="$1"
-  $curl --no-progress-meter --silent --show-error "${url}" \
-    | sed -n -e "${sedscript_filter}" \
-    | sed -e "${sedscript_rename}"
 }
 
 addchannels()
@@ -92,7 +95,12 @@ addchannels()
   log_debug "output=$output"
 
 
-  echo "#EXTM3U" > "${TMPFILE}"
+  echo "#EXTM3U" > "${_output_playlist}"
+  # Not sure why, but this is not reliable if you pipe the sed output into the while loop
+  curl --no-progress-meter --silent --show-error "${URL}" \
+    | sed -n -e "${sedscript_filter}" \
+    | sed -e "${sedscript_rename}" > ${_input_playlist}
+
   while read -r line ; do
     # shellcheck disable=2001
     channelID=$(echo  "${line}" | sed  's/.*,\(.*\)$/\1/')
@@ -106,20 +114,20 @@ addchannels()
     fi
 
     # shellcheck disable=2001
-    printf '%s\n' "$line" | sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" >> "${TMPFILE}"
+    printf '%s\n' "$line" | sed -e "s/tvg-id/tvh-chnum=\"$channel\" &/" >> "${_output_playlist}"
 
     # Get the next line contaiing the url
     read -r line
-    echo "${line}" >> "${TMPFILE}"
+    echo "${line}" >> "${_output_playlist}"
     channelCount+=1
-  done  < <(readInputM3U "${url}")
+  done < ${_input_playlist}
 
   log_info "Found $channelCount channels"
   if [[ ${channelCount} -eq 0 ]] ; then
     log_error "No channels found"
     exit 1
   fi
-  cp "${TMPFILE}" "${output}"
+  cp "${_output_playlist}" "${output}"
 }
 
 CHANNELS=${XMLTV}/nord.channels
