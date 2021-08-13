@@ -18,7 +18,7 @@ log_err() { >&2 echo "$@" ; }
 
 # default values
 humaxHost=humax
-HumaxExport="${humaxHost}:/mnt/hd2/My Video"
+HumaxExport="${humaxHost}:/mnt/hd2"
 NFSopts="rw,nosuid,soft,noatime,nolock,intr,rsize=131072,wsize=131072,noauto"
 user=root
 state=

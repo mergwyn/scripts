@@ -11,8 +11,9 @@ set -o nounset
 
 # default values
 HumaxHost=humax
-HumaxDir=/nfs/${HumaxHost}
-TVDir=${HumaxDir}/.TV
+VideoDir="My Video"
+HumaxDir="/nfs/${HumaxHost}/${VideoDir}"
+TVDir=/nfs/${HumaxHost}/.TV
 HumaxBin="${HumaxDir}"/'[Deleted Items]'
 IgnoreFile=.plexignore
 check=
@@ -90,7 +91,7 @@ RebuildIgnoreFile()
     do
       ShowName=$(dirname "${TVShow}")
       log_info "Found TV Show: ${TVShow}"
-      ${ln} -s ../"${ShowName}" "${TVDir}/${ShowName}"
+      ${ln} -s "../${VideoDir}/${ShowName}" "${TVDir}/${ShowName}"
       echo "${ShowName}"'/*' >> "${TmpFile}"
     done< <(find -- * -name '\[Deleted Items\]' -prune -o -name .tvdbseriesid -print0)
 
@@ -133,9 +134,9 @@ PROG=$(dirname "$0")/process_media
 ismounted "${TVDir}" && RebuildIgnoreFile
 ismounted "${TVDir}" && RemoveOrphans
 
-ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/TV" --humax --tvdb "/nfs/humax/.TV"	|| ExitCode+=$?
-ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/Other" --humax  "/nfs/humax"		|| ExitCode+=$?
-ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/Films" --humax "/nfs/humax/0 Films"	|| ExitCode+=$?
+ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/TV" --humax --tvdb "${TVDir}"   	|| ExitCode+=$?
+ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/Other" --humax "${HumaxDir}"		|| ExitCode+=$?
+ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/Films" --humax "${HumaxDir}/0 Films"	|| ExitCode+=$?
 "${PROG}" "$@" "/srv/media/TV Shows"	|| ExitCode+=$?
 "${PROG}" "$@" "/srv/media/Movies"		|| ExitCode+=$?
 #${PROG} ${ARGS} "/srv/media/Recorded/Films"	|| ExitCode+=$?
