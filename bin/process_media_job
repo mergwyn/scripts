@@ -80,21 +80,27 @@ RebuildIgnoreFile()
 
   if [[ -d ${TVDir} ]] 
   then
+# Tidy up old symbolic links
     ${rm} -f "${TVDir}"/*
-      while IFS= read -r -d '' TVShow
-      do
-	ShowName=$(dirname "${TVShow}")
-	log_info "Found TV Show: ${TVShow}"
-	${ln} -s ../"${ShowName}" "${TVDir}/${ShowName}"
-	echo "${ShowName}"'/*' >> "${TmpFile}"
-      done< <(find -- * -name '\[Deleted Items\]' -prune -o -name .tvdbseriesid -print0)
-      if [[ $(diff "${TmpFile}" "${IgnoreFile}") ]]
-      then
-        log_info "Overwriting ${IgnoreFile}"
-        ${mv} "${TmpFile}" "${IgnoreFile}"
-      else
-	${rm} "${TmpFile}"
-      fi
+    find "${HumaxDir}"/* -type l -exec ${rm} {} \;
+# Now get all series for which we have a tdvb and
+# link to .TV directory
+# and add to ignore file so it doesnt get processed twice
+    while IFS= read -r -d '' TVShow
+    do
+      ShowName=$(dirname "${TVShow}")
+      log_info "Found TV Show: ${TVShow}"
+      ${ln} -s ../"${ShowName}" "${TVDir}/${ShowName}"
+      echo "${ShowName}"'/*' >> "${TmpFile}"
+    done< <(find -- * -name '\[Deleted Items\]' -prune -o -name .tvdbseriesid -print0)
+
+    if [[ $(diff "${TmpFile}" "${IgnoreFile}") ]]
+    then
+      log_info "Overwriting ${IgnoreFile}"
+      ${mv} "${TmpFile}" "${IgnoreFile}"
+    else
+      ${rm} "${TmpFile}"
+    fi
   fi
 )
 }
