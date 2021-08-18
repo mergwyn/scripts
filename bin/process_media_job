@@ -82,7 +82,9 @@ RebuildIgnoreFile()
   if [[ -d ${TVDir} ]] 
   then
 # Tidy up old symbolic links
+    log_info "Removing contents of ${TVDir}"
     ${rm} -f "${TVDir}"/*
+    log_info "Removing symbolic links from ${HumaxDir}"
     find "${HumaxDir}"/* -type l -exec ${rm} {} \;
 # Now get all series for which we have a tdvb and
 # link to .TV directory
@@ -90,7 +92,7 @@ RebuildIgnoreFile()
     while IFS= read -r -d '' TVShow
     do
       ShowName=$(dirname "${TVShow}")
-      log_info "Found TV Show: ${TVShow}"
+      log_info "Found TV Show: ${TVShowName} linking to ${TVDir}/${ShowName}"
       ${ln} -s "../${VideoDir}/${ShowName}" "${TVDir}/${ShowName}"
       echo "${ShowName}"'/*' >> "${TmpFile}"
     done< <(find -- * -name '\[Deleted Items\]' -prune -o -name .tvdbseriesid -print0)
