@@ -66,6 +66,13 @@ fi
 isalive() { ping -c 1 "$1" > /dev/null 2>&1; }
 ismounted() { test -d "${1}" ; }
 
+# check if there is another instance running
+if pidof -o $$ -x "$(basename $0)" > /dev/null
+then
+  log_info "$0 is already running, exiting"
+  exit 0
+fi
+
 RebuildIgnoreFile()
 {
 (
