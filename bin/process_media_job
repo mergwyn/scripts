@@ -92,7 +92,7 @@ RebuildIgnoreFile()
     while IFS= read -r -d '' TVShow
     do
       ShowName=$(dirname "${TVShow}")
-      log_info "Found TV Show: ${TVShowName} linking to ${TVDir}/${ShowName}"
+      log_info "Found TV Show: ${ShowName} linking to ${TVDir}/${ShowName}"
       ${ln} -s "../${VideoDir}/${ShowName}" "${TVDir}/${ShowName}"
       echo "${ShowName}"'/*' >> "${TmpFile}"
     done< <(find -- * -name '\[Deleted Items\]' -prune -o -name .tvdbseriesid -print0)
