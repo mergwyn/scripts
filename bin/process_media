@@ -15,7 +15,15 @@ for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
 # default values
 blackoutStartTime="183000"
 blackoutEndTime="235900"
-currentTime=
+currentTime=$(date +"%H%M%S")
+
+log_debug "$0 starting - currentTime: $currentTime, blackoutStartTime: $blackoutStartTime, blackoutEndTime: $blackoutEndTime"
+if [[ ( "$currentTime" > "$blackoutStartTime" && "$currentTime" < "$blackoutEndTime" ) ]]
+then
+  log_info "Stopping run currently within blackout"
+  exit 0
+fi
+
 trashDeleteDays=7
 dryrun=
 inputSuffixes=".mkv .ts .avi"
