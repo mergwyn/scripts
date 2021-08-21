@@ -46,14 +46,15 @@ while true ; do
           log_notice "Mounting ${humaxShare}"
           mount -t nfs -o "${NFSopts}" "${HumaxExport}" "${humaxShare}"
           log_debug "mount ${humaxShare} returned $?"
+
+          # Optionally try to start process_media_job
+          if systemctl is-enabled process_media.timer ; then
+            log_notice "process_media seems to be enabled so start service"
+            systemctl start process_media.service
+          fi
         fi
       fi
       state=up
-# Optionally try to start process_media_job
-      if systemctl is-enabled process_media.timer ; then
-        log_notice "process_media seems to be enabled so start service"
-        systemctl start process_media.service
-      fi
     else
       log_info "Waiting for $humaxHost to quiesce, countdown=$countdown"
       countdown+=${sleep}
