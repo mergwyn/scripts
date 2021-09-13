@@ -322,8 +322,8 @@ do
 	log_debug output $(ls -l "${output}")
       else
         log_notice "Transcoding ${input} to  ${outputPath}"
-        log_debug ${transcode} ${transcodeArgs} --input="${input}" 2>&1 
-        ${transcode} ${transcodeArgs} --input="${input}" 2>&1 | log_output
+        log_debug ${transcode} --moveto="${outputPath}" ${transcodeArgs} --input="${input}" 2>&1 
+        ${transcode} --moveto="${outputPath}" ${transcodeArgs} --input="${input}" 2>&1 | log_output
         result=${PIPESTATUS[0]}
 	log_debug transcode output: $(ls -l "${output}" 2>/dev/null)
 	if [[ $result = 0 && -f "${output}" ]]
