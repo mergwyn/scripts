@@ -1,0 +1,172 @@
+#!/bin/bash
+#set -o nounset
+
+DEBUGLOG=true
+#export LOGDEST=stdout
+
+for function in $(dirname $0)/../functions/*.sh; do . ${function}; done
+
+backup_dir=/var/backups/templates
+[[ -d "${backup_dir}" ]] || mkdir -p "${backup_dir}"
+
+#Number of days to keep the backup
+days="-daystart -mtime +2"
+keep=5
+backupChanged=
+
+scratch=$(mktemp --suffix .templates)
+function finish { rm -rf "$scratch" ; }
+trap finish EXIT
+
+Usage()
+{
+  cat <<EOF >&2
+$0: <flags> 
+Allowed flags are:
+-k|--keep     Number of versions to keep [default ${keep}
+--help        Print this message
+EOF
+}
+
+params="$(getopt -o k: --long keep:,help --name "$0" -- "$@")"
+eval set -- "$params"
+
+while true
+do
+  case "$1" in
+    -k|--keep)      keep=$2; shift 2;;
+    --help)         Usage; exit 0;;
+    --)             shift; break ;;
+    *)              log_critical "Not implemented: $1" ; Usage; exit 1;;
+  esac
+done
+
+cleanBackups()
+{
+  backups=($(ls -1t ${where} 2> /dev/null))
+  count=${#backups[@]}
+  log_debug "Cleanbackups: there are $count backups, want to keep ${keep}"
+  for (( index=${keep}; index<${count}; index++ ))
+  do
+    log_notice "Cleanbackups: deleting backup ${backups[${index}]} at index ${index}"
+    log_debug Cleanbackups: rm -f "${where}"/"${backups[${index}]}"
+    rm -rf "${where}"/"${backups[${index}]}"
+  done
+}
+export_templates()
+{
+  if [ -e ../zapish.inc ]; then
+    . ../zapish.inc
+  elif [ -e /usr/libexec/zapish/zapish.inc ]; then
+    . /usr/libexec/zapish/zapish.inc
+  else
+    echo "No zapish.inc found"
+    exit 1
+  fi
+  new_backup="${backup_dir}/$(date +'%Y%m%d')"
+  [[ -d "${new_backup}" ]] || mkdir -p "${new_backup}"
+  log_info "Creating new backup in ${new_backup}"
+
+# Get all template IDs
+  json_get "$(zabbix_api template.get \
+     "$(json_list params \
+         "$(json_str output extend \
+         "")" \
+     "")" \
+  )" '.result[].name' | \
+  while read template_name; do
+     # strip down leading and trailing quotes
+     template_name="${template_name:1:-1}"
+
+     template_id="$(json_get "$(zabbix_api template.get \
+         "$(json_list params \
+             "$(json_list "filter" \
+                 "$(json_str "name" \
+                     "${template_name}" \
+                 "")" \
+             "")" \
+             "$(json_str "output" "simple" \
+             "")" \
+         "")" \
+     )" '.result[].templateid')"
+
+     xml_output="$(zabbix_api configuration.export \
+         "$(json_list params \
+             "$(json_list options \
+                 "$(json_array_num templates \
+                     ${template_id} \
+                 "")" \
+             "")" \
+             "$(json_str format xml \
+             "")" \
+         "")" \
+     )"
+
+     #normalised_name=$(echo "${template_name}" | sed 's/ /_/g' | tr '[:upper:]' '[:lower:]')
+     normalised_name="${template_name}"
+     log_debug $(printf "Template id=%7s, Name=%-40s dump to \"%s.xml\"\n" ${template_id} "\"${normalised_name}\"" "${normalised_name}")
+     echo "${xml_output}" | jq -r .result | xmllint --format - > "${new_backup}/${normalised_name}.xml"
+  done
+}
+
+export_templates
+
+for where in $(ls -d "${backup_dir}")
+do
+  declare -i count=0
+  mapfile -t backups < <(ls -1r ${where} 2> /dev/null)
+  count=${#backups[@]}
+
+  adjCount=$(( ${#backups[@]} - 1 )) # excludes highest index = earliest backup
+  for (( index=0; index<${adjCount}; index++ ))
+  do
+    backupChanged=
+    latest=${backups[$index]}
+    prev=${backups[ $(( $index + 1 )) ]}
+    log_info "Comparing ${latest} with ${prev}"
+    if [[ -z ${latest} ]]
+    then
+      log_error "No latest backup found ${latest}"
+      break
+    fi
+    if [[ -z ${prev} ]]
+    then
+      log_error "No previous backup found ${prev}"
+      break
+    fi
+
+    while read -r template
+    do
+      log_debug "Checking template${template}"
+      prev_template="${where}/${prev}/${template}" 
+      if [[ ! -f "${prev_template}" ]]
+      then
+        log_debug No previous template: ${prev_template} does not exist
+        backupChanged="backupChanged"
+        break
+      fi
+      latest_template="${where}/${latest}/${template}" 
+      # check difference ignoring exported date
+      diff -I '<date>.*</date>' "${latest_template}" "${prev_template}" 2>/dev/null > ${scratch}
+      result=$?
+      if [[ ${result} != 0 ]]
+      then
+        backupChanged="backupChanged"
+        log_debug $(cat ${scratch})
+        break
+      fi
+    done < <(ls "${where}/${latest}")
+
+    log_debug Backup Changed is: $backupChanged
+
+    if [[ ! "${backupChanged}" ]] 
+    then
+      log_notice Backup not changed, deleting "${where}/${latest}" 
+      log_debug rm -rf "${where}/${latest}" 
+      rm -rf "${where}/${latest}" 
+    fi
+  done
+
+  cleanBackups
+done
+# vim: sw=2:ai:nu expandtab
