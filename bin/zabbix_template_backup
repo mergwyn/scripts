@@ -14,9 +14,12 @@ days="-daystart -mtime +2"
 keep=5
 backupChanged=
 
-scratch=$(mktemp --suffix .templates)
+scratch=$(mktemp -d --suffix .templates)
 function finish { rm -rf "$scratch" ; }
 trap finish EXIT
+
+temp_dir="${scratch}/templates"
+mkdir "${temp_dir}"
 
 Usage()
 {
@@ -63,9 +66,7 @@ export_templates()
     echo "No zapish.inc found"
     exit 1
   fi
-  new_backup="${backup_dir}/$(date +'%Y%m%d')"
-  [[ -d "${new_backup}" ]] || mkdir -p "${new_backup}"
-  log_info "Creating new backup in ${new_backup}"
+  log_info "Exporting templates to ${temp_dir}"
 
 # Get all template IDs
   json_get "$(zabbix_api template.get \
@@ -105,68 +106,41 @@ export_templates()
      #normalised_name=$(echo "${template_name}" | sed 's/ /_/g' | tr '[:upper:]' '[:lower:]')
      normalised_name="${template_name}"
      log_debug $(printf "Template id=%7s, Name=%-40s dump to \"%s.xml\"\n" ${template_id} "\"${normalised_name}\"" "${normalised_name}")
-     echo "${xml_output}" | jq -r .result | xmllint --format - > "${new_backup}/${normalised_name}.xml"
+     echo "${xml_output}" | jq -r .result | xmllint --format - > "${temp_dir}/${normalised_name}.xml"
   done
 }
 
 export_templates
 
-for where in $(ls -d "${backup_dir}")
+declare -i count=0
+mapfile -t backups < <(ls -1r ${temp_dir} 2> /dev/null)
+count=${#backups[@]}
+
+while read -r template
 do
-  declare -i count=0
-  mapfile -t backups < <(ls -1r ${where} 2> /dev/null)
-  count=${#backups[@]}
-
-  adjCount=$(( ${#backups[@]} - 1 )) # excludes highest index = earliest backup
-  for (( index=0; index<${adjCount}; index++ ))
-  do
-    backupChanged=
-    latest=${backups[$index]}
-    prev=${backups[ $(( $index + 1 )) ]}
-    log_info "Comparing ${latest} with ${prev}"
-    if [[ -z ${latest} ]]
+  backupChanged="notChanged"
+  log_debug "Checking template: ${template}"
+  prev_template="${backup_dir}/${template}"
+  latest_template="${temp_dir}/${template}" 
+  if [[ ! -f "${latest_template}" ]]
+  then
+    log_debug No previous template: ${latest_template} does not exist
+    backupChanged="Changed"
+  else
+    # check difference ignoring exported date
+    diff -I '<date>.*</date>' "${latest_template}" "${prev_template}" 2>/dev/null > ${scratch}/diff
+    result=$?
+    if [[ ${result} != 0 ]]
     then
-      log_error "No latest backup found ${latest}"
-      break
+      backupChanged="Changed"
+      log_debug Template diff output: $(cat ${scratch}/diff)
     fi
-    if [[ -z ${prev} ]]
-    then
-      log_error "No previous backup found ${prev}"
-      break
-    fi
-
-    while read -r template
-    do
-      log_debug "Checking template${template}"
-      prev_template="${where}/${prev}/${template}" 
-      if [[ ! -f "${prev_template}" ]]
-      then
-        log_debug No previous template: ${prev_template} does not exist
-        backupChanged="backupChanged"
-        break
-      fi
-      latest_template="${where}/${latest}/${template}" 
-      # check difference ignoring exported date
-      diff -I '<date>.*</date>' "${latest_template}" "${prev_template}" 2>/dev/null > ${scratch}
-      result=$?
-      if [[ ${result} != 0 ]]
-      then
-        backupChanged="backupChanged"
-        log_debug $(cat ${scratch})
-        break
-      fi
-    done < <(ls "${where}/${latest}")
-
-    log_debug Backup Changed is: $backupChanged
-
-    if [[ ! "${backupChanged}" ]] 
-    then
-      log_notice Backup not changed, deleting "${where}/${latest}" 
-      log_debug rm -rf "${where}/${latest}" 
-      rm -rf "${where}/${latest}" 
-    fi
-  done
-
-  cleanBackups
-done
-# vim: sw=2:ai:nu expandtab
+  fi
+  log_debug Template is $backupChanged
+  if [[ "${backupChanged}" = "Changed" ]] 
+  then
+    log_notice Backup changed, copying "${template}"
+    log_debug cp -p "${latest_template}" "${prev_template}"
+    cp -p "${latest_template}" "${prev_template}"
+  fi
+done < <(ls "${temp_dir}")
