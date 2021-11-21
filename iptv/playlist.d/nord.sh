@@ -97,7 +97,7 @@ addchannels()
 
   echo "#EXTM3U" > "${_output_playlist}"
   # Not sure why, but this is not reliable if you pipe the sed output into the while loop
-  ${curl} --no-progress-meter --silent --show-error "${URL}" \
+  ${curl} --connect-timeout 10 --no-progress-meter --silent --show-error "${URL}" \
     | sed -n -e "${sedscript_filter}" \
     | sed -e "${sedscript_rename}" > ${_input_playlist}
 
