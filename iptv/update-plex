@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 
-
-set -o nounset
+#set -o nounset
 #set -o errexit
+
+LOGLEVEL=${LOGLEVEL:-"INFO"}
+
+# shellcheck disable=1090
+source "$(dirname "${0}")"/../functions/log.sh
+
 curl=/opt/puppetlabs/puppet/bin/curl
 DATA=$(dirname "$0")/iptv_urls
 if [[ -f "${DATA}" ]]
@@ -17,5 +22,8 @@ fi
 PLEX_SERVER="tango.theclarkhome.com"
 DVR_ID=214
 
+log_debug "Update plex guide at token ${PLEX_TOKEN}"
 [[ ! -z ${PLEX_TOKEN} ]] &&
   ${curl} -X POST "http://${PLEX_SERVER}:32400/livetv/dvrs/${DVR_ID}/reloadGuide?X-Plex-Token=${PLEX_TOKEN}"
+res=$?
+log_debug "Update plex guide returned ${res}"
