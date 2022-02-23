@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+
+set -o nounset
+#set -o errexit
+curl=/opt/puppetlabs/puppet/bin/curl
+DATA=$(dirname "$0")/iptv_urls
+if [[ -f "${DATA}" ]]
+then
+  # shellcheck source=/dev/null
+  . "${DATA}"
+else
+  echo "URL file ${DATA} not found" >&2
+  exit 1
+fi
+
+PLEX_SERVER="tango.theclarkhome.com"
+DVR_ID=214
+
+[[ ! -z ${PLEX_TOKEN} ]] &&
+  ${curl} -X POST "http://${PLEX_SERVER}:32400/livetv/dvrs/${DVR_ID}/reloadGuide?X-Plex-Token=${PLEX_TOKEN}"
