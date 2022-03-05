@@ -20,7 +20,7 @@ else
 fi
 
 PLEX_SERVER="tango.theclarkhome.com"
-DVR_ID=214
+DVR_ID=216
 
 log_debug "Update plex guide at token ${PLEX_TOKEN}"
 [[ ! -z ${PLEX_TOKEN} ]] &&
