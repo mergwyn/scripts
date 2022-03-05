@@ -20,7 +20,13 @@ else
 fi
 
 PLEX_SERVER="tango.theclarkhome.com"
-DVR_ID=216
+get_dvr_id() {
+  ${curl} --silent "http://${PLEX_SERVER}:32400/livetv/dvrs?X-Plex-Token=${PLEX_TOKEN}" \
+    | xml2 \
+    | grep /MediaContainer/Dvr/@key | cut -f 2 -d '='
+}
+
+DVR_ID=$(get_dvr_id)
 
 log_debug "Update plex guide at token ${PLEX_TOKEN}"
 [[ ! -z ${PLEX_TOKEN} ]] &&
