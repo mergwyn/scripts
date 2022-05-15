@@ -6,5 +6,5 @@ for suffix in jpg JPG ; do
   while IFS= read -r file ; do
     echo "Renaming $file"
     mv -- "${file}" "${file%.${suffix}}.jpeg" 
-  done < <( find "${pictureDir}"  -name '*'."${suffix}" )
+  done < <( find "${pictureDir}"  -name '*'."${suffix}"  2>/dev/null )
 done
