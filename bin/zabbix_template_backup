@@ -21,6 +21,11 @@ trap finish EXIT
 temp_dir="${scratch}/templates"
 mkdir "${temp_dir}"
 
+
+# Add Puppet bin to PATH
+profile="/etc/profile.d/puppet-agent.sh"
+[[ -f "${profile}" ]] && . "${profile}"
+
 Usage()
 {
   cat <<EOF >&2
