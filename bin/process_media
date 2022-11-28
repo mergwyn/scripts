@@ -69,11 +69,8 @@ prune=(
 
 # Directories to scan
 dirs=(
-#"/srv/media/Recorded/Films"
-#"/srv/media/Recorded/TV"
-#"/srv/media/Recorded/Videos"
-"/srv/media/Movies"
-"/srv/media/TV Shows"
+"/srv/media/content/films"
+"/srv/media/content/tv"
 )
 
 SafeDelete()
