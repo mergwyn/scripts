@@ -60,7 +60,7 @@ getChannelNumber() {
 
   # shellcheck disable=2001
   pattern=$(echo "$*" | sed 's/\*/\\*/g')
-  num=$(grep -Fn "$pattern" "${CHANNELS}" | grep -Eo '^[^:]+')
+  num=$(grep -Fn "${pattern} " "${CHANNELS}" | grep -Eo '^[^:]+')
   matches=$(echo -n "$num" | grep -c '^')
 
   case ${matches} in
