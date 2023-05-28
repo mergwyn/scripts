@@ -41,7 +41,7 @@ sedscript_filter+='/tvg-name="-----/,+1 d;'
 while read -r pattern ; do
   sedscript_filter+="/$pattern/,+1 p;"
 done <<EOF
-group-title=\"\[UK\] SPORTS
+group-title=\"UK| *SPORTS
 EOF
 
 # channels to be mapped
