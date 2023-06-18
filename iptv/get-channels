@@ -7,4 +7,4 @@ do
 done
 
 /opt/scripts/bin/xteve.update
-/opt/scripts/iptv/update-plex
+/opt/scripts/bin/plex.update

@@ -2,6 +2,7 @@
 set -o nounset err
 
 
+host=xteve.theclarkhome.com
 # shellcheck source=/dev/null
 for function in "$(dirname "$0")"/../functions/*.sh; do source "${function}"; done
 
@@ -14,7 +15,7 @@ callapi()
   response=()
   _call=${1}
   log_debug "call api called with ${_call}"
-  json=$(/opt/puppetlabs/puppet/bin/curl -d "{\"cmd\":\"${_call}\"}" -s 'http://localhost:34400/api/.' | jq -c)
+  json=$(/opt/puppetlabs/puppet/bin/curl --data "{\"cmd\":\"${_call}\"}" --location --silent "http://${host}/api/."  | jq -c)
   log_debug "API response = $json"
   responsecontent=$(jq -r '. | to_entries | .[] | "[\"" + .key + "\"]=" + (.value | @sh)' <<< "$json")
 
