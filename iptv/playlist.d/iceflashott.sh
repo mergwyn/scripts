@@ -20,7 +20,6 @@ function finish { rm -rf "${TMPFILE}"; }
 trap finish EXIT
 
 DATA="$(dirname "${0}")"/../iptv_urls
-DATA=iptv_urls
 if [[ -f "${DATA}" ]] ; then
   # shellcheck disable=1090
   source "${DATA}"
