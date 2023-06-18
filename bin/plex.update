@@ -9,7 +9,7 @@ LOGLEVEL=${LOGLEVEL:-"INFO"}
 source "$(dirname "${0}")"/../functions/log.sh
 
 curl=/opt/puppetlabs/puppet/bin/curl
-DATA=$(dirname "$0")/iptv_urls
+DATA=$(dirname "$0")/../iptv/iptv_urls
 if [[ -f "${DATA}" ]]
 then
   # shellcheck source=/dev/null
