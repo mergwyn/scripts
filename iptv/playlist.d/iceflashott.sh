@@ -40,9 +40,10 @@ addchannels()
 
 
   echo "#EXTM3U" > "${_output_playlist}"
-  ${curl} --connect-timeout 10 --no-progress-meter --silent --show-error "${URL}" \
+  ${curl} --connect-timeout 10 --no-progress-meter --silent --show-error "${URL}" > "${_input_playlist}"
+  cat "${_input_playlist}" \
     | grep -vE 'PPV|tvg-id=""' \
-    | grep -A1 'UK|' \
+    | grep --no-group-separator -A1 'UK|' \
     >> "${_output_playlist}" 
   cp "${_output_playlist}" "${output}"
 }
