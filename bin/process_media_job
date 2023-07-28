@@ -10,7 +10,7 @@ set -o nounset
 #set -o errexit
 
 # default values
-HumaxHost=humax
+HumaxHost=humax.theclarkhome.com
 VideoDir="My Video"
 HumaxDir="/nfs/${HumaxHost}/${VideoDir}"
 TVDir=/nfs/${HumaxHost}/.TV
