@@ -41,7 +41,7 @@ label="Universal TV"
 topDir="Plex Versions"
 outputDir="${topDir}/${label}"
 outputDir=
-humaxDir="/nfs/humax"
+humaxDir="/nfs/humax.theclarkhome.com"
 humaxBin="${humaxDir}"/'[Deleted Items]'
 localBin=.Trash
 
