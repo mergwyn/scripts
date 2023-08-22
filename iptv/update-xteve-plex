@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+_here=$(dirname $0)
+
+${_here}/get-channels
+${_here}/get-epg
+
+/opt/scripts/bin/xteve.update
+/opt/scripts/bin/plex.update
