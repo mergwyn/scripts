@@ -185,16 +185,7 @@ global_policy() {
 }
 
 completion_bash() {
-cat <<EOF
-_kopiacmd() {
-  COMPREPLY+=("repo")
-  COMPREPLY+=("system")
-  COMPREPLY+=("users")
-  COMPREPLY+=("policy")
-}
-
-complete -F _kopiacmd kopiacmd
-EOF
+  completely generate /opt/scripts/bin/kopiacmd.yaml ~/.local/share/bash-completion/completions/kopiacmd
 }
 
 case ${cmd} in
