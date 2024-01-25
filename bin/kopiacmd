@@ -170,7 +170,7 @@ global_policy() {
   global[keep-weekly]=4
   global[keep-monthly]=12
   global[keep-annual]=0
-  global[ignore-identical-snapshots]=true
+  global[ignore-identical-snapshots]=false
   global[before-folder-action]="${folder_action}/folder-before"
   global[after-folder-action]="${folder_action}/folder-after"
   global[before-snapshot-root-action]="${snapshot_action}/snap-before"
