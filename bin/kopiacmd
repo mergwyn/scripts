@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+
+
+me=$(basename $0)
+
+topdir=/etc/kopia
+secret=theclarkhome-com-tls
+cert=${topdir}/${secret}
+config_dir=${topdir}/config.d
+folder_action="/bin/run-parts --report /etc/kopia"
+snapshot_action="/bin/run-parts --report /etc/kopia"
+repodir=/srv2/kopia
+KOPIA_PASSWORD=$(kubectl -n velero get secret velero-repo-credentials -o json -o=jsonpath='{.data.repository-password}' | base64 -d)
+TYPE=filesystem
+
+log_error() { echo "$@" >&2 ; }
+log_info() { echo "$@" ; }
+log_debug() { echo "DEBUG: $@" ; }
+
+cmd=$1
+shift
+
+usage1() {
+  cat <<EOF >&1
+Usage: ${me} <command>
+
+Commands:
+  repo
+    create repo_type
+    connect repo_type
+  system
+    install
+    certs
+  users
+    add repo_type
+  policy
+    global repo_type
+EOF
+}
+
+install_package() {
+  log_info "Installing kopia package"
+  curl -s https://kopia.io/signing-key | gpg --no-tty --dearmor --yes  -o /etc/apt/keyrings/kopia-keyring.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/kopia-keyring.gpg] http://packages.kopia.io/apt/ stable main" | tee  /etc/apt/sources.list.d/kopia.list
+
+  apt update
+  apt install kopia
+
+  mkdir -p /etc/kopia/config.d
+  mkdir -p /etc/kopia/folder-after
+  mkdir -p /etc/kopia/folder-before
+  mkdir -p /etc/kopia/snap-after
+  mkdir -p /etc/kopia/snap-before
+
+}
+create_cert() {
+  log_info "Extracting certs fom k8s secret ${secret}"
+  export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+  kubectl -n kube-system get secrets ${secret} -o json -o=jsonpath="{.data.tls\.key}" | base64 -d > ${cert}.key
+  kubectl -n kube-system get secrets ${secret} -o json -o=jsonpath="{.data.tls\.crt}" | base64 -d > ${cert}.cert
+
+  log_info "Server finger print is:"
+  openssl x509 -in ${cert}.cert -noout -fingerprint -sha256 | sed 's/://g' | cut -f 2 -d =
+}
+
+create_repo() {
+  local type=$1
+  case ${type} in
+  filesystem)
+    log_info "Creating repo in ${repodir}"
+    kopia repository create filesystem --path ${repodir} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf
+    ;;
+
+  velero-monitoring|velero-default|velero-downloaders|server-foxtrot)
+    log_error "No need to create a ${type} repository, just connect"
+    exit 1
+    ;;
+
+  rclone)
+    local remote=onedrive-gary:/con/kopia 
+    log_info "Creating repo in rclone ${remote}"
+    kopia repository create rclone --remote-path=${remote} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf
+    ;;
+
+  idrive-kopia)
+    local bucket=${type##idrive-}
+    AWS_ACCESS_KEY_ID=$(kubectl -n velero get secret idrivee2-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
+    AWS_SECRET_ACCESS_KEY=$(kubectl -n velero get secret idrivee2-s3 -o json -o=jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
+    ENDPOINT=$(kubectl -n velero get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
+
+    log_info "Creating repo in idrive s3 ${bucket}:${prefix}"
+    kopia repository create s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf
+    ;;
+
+  *)
+    log_error "Cannout create, repo $type not supported"
+    exit 1
+    ;;
+  esac
+}
+
+connect_repo() {
+  local type=$1
+  case ${type} in
+  filesystem|rclone)
+    log_info "Connect ${type}, repodir=${repodir}"
+    kopia repository connect from-config --file=${config_dir}/${type}.conf --password=${KOPIA_PASSWORD} --enable-actions
+    ;;
+
+  server-foxtrot)
+    local host=${type##server-}
+    log_info "Connect to server on host"
+    if [[ $(hostname) == ${host} ]] ; then
+      if [[ $(hostname -i) == 127* ]] ; 
+      then
+	log_error "Host ip is $(hostname -i), fix hostname in /etc/hosts"
+	exit 1
+      fi
+    fi
+    kopia repository connect server --url=https://${host}.theclarkhome.com:51515 --password=L1nahswf.lr --config-file=${config_dir}/${type}.conf --enable-actions
+    ;;
+
+  velero-monitoring|velero-default|velero-downloaders)
+    local bucket=${type%-*}
+    local prefix=kopia/${type##velero-}/
+    AWS_ACCESS_KEY_ID=$(kubectl -n velero get secret seaweedfs-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
+    AWS_SECRET_ACCESS_KEY=$(kubectl -n velero get secret seaweedfs-s3 -o json -o=jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
+    ENDPOINT=$(kubectl -n velero get secret seaweedfs-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
+
+    log_info "Connect to repo in seaweedfs s3 ${bucket}:${prefix}"
+    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf
+    ;;
+
+  idrive-kopia)
+    local bucket=${type##idrive-}
+    AWS_ACCESS_KEY_ID=$(kubectl -n velero get secret idrivee2-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
+    AWS_SECRET_ACCESS_KEY=$(kubectl -n velero get secret idrivee2-s3 -o json -o=jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
+    ENDPOINT=$(kubectl -n velero get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
+
+    log_info "Connecting repo in idrive s3 ${bucket}:${prefix}"
+    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf --enable-actions
+    ;;
+
+  *)
+    log_error "cannot connect, repo $type not supported"
+    exit 1
+    ;;
+  esac
+  log_info "Use 'export KOPIA_CONFIG_PATH=${config_dir}/${type}.conf' or '--config-file=${config_dir}/${type}.conf' to continue using this repo" 
+  export KOPIA_CONFIG_PATH=${config_dir}/${type}.conf 
+  
+}
+
+add_users() {
+  connect_repo $1
+
+# TODO
+}
+
+global_policy() {
+  declare -A global
+  global[compression]=pgzip-best-speed
+  global[keep-latest]=0
+  global[keep-hourly]=24
+  global[keep-daily]=7
+  global[keep-weekly]=4
+  global[keep-monthly]=12
+  global[keep-annual]=0
+  global[ignore-identical-snapshots]=false
+  global[before-folder-action]="${folder_action}/folder-before"
+  global[after-folder-action]="${folder_action}/folder-after"
+  global[before-snapshot-root-action]="${snapshot_action}/snap-before"
+  global[after-snapshot-root-action]="${snapshot_action}/snap-after"
+
+  connect_repo $1
+
+  for key in "${!global[@]}" ; do
+    #log_debug "Key is '$key'  => Value is '${global[$key]}'"
+    kopia policy set --global --$key  "${global[$key]}"
+  done
+}
+
+completion_bash() {
+  completely generate /opt/scripts/bin/kopiacmd.yaml ~/.local/share/bash-completion/completions/kopiacmd
+}
+
+case ${cmd} in
+  repo)
+    subcmd=$1
+    shift
+    case ${subcmd} in
+      create)
+	create_repo ${1:=${TYPE}}
+	;;
+      connect)
+	connect_repo ${1:=${TYPE}}
+	;;
+      *)
+	log_error "Unknown subcommand ${me} ${cmd} ${subcmd}"
+	usage1
+	;;
+    esac
+    ;;
+  system)
+    subcmd=$1
+    shift
+    case ${subcmd} in
+      install)
+	install_package
+	;;
+      certs)
+	create_cert
+	;;
+      *)
+	log_error "Unknown subcommand ${me} ${cmd} ${subcmd}"
+	usage1
+	;;
+    esac
+    # install package TODO move to pupppet??
+    # create certs
+    ;;
+  users)
+    subcmd=$1
+    shift
+    case ${subcmd} in
+      add)
+	add_users ${1:=${TYPE}}
+	;;
+      *)
+	log_error "Unknown subcommand ${me} ${cmd} ${subcmd}"
+	usage1
+	;;
+    esac
+    ;;
+  policy)
+    subcmd=$1
+    shift
+    case ${subcmd} in
+      global)
+	global_policy ${1:=${TYPE}}
+	;;
+      *)
+	log_error "Unknown subcommand ${me} ${cmd} ${subcmd}"
+	usage1
+	;;
+    esac
+    ;;
+  completion)
+    subcmd=$1
+    shift
+    case ${subcmd} in
+      bash)
+	completion_bash
+	;;
+      *)
+	log_error "Unknown subcommand ${me} ${cmd} ${subcmd}"
+	usage1
+	exit 1
+	;;
+    esac
+    exit 0
+    ;;
+  help)
+    usage1
+    exit 0
+    ;;
+  *)
+    log_error "Unknown command '${cmd}'" 
+    usage1
+    exit 1
+    ;;
+esac
