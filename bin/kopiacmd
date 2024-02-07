@@ -117,15 +117,15 @@ connect_repo() {
 	exit 1
       fi
     fi
-    kopia repository connect server --url=https://${host}.theclarkhome.com:51515 --password=L1nahswf.lr --config-file=${config_dir}/${type}.conf --enable-actions
+    #kopia repository connect server --url=https://${host}.theclarkhome.com:9000 --password=XXXXXXX --config-file=${config_dir}/${type}.conf --enable-actions
     ;;
 
   velero-monitoring|velero-default|velero-downloaders)
     local bucket=${type%-*}
     local prefix=kopia/${type##velero-}/
-    AWS_ACCESS_KEY_ID=$(kubectl -n velero get secret seaweedfs-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
-    AWS_SECRET_ACCESS_KEY=$(kubectl -n velero get secret seaweedfs-s3 -o json -o=jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
-    ENDPOINT=$(kubectl -n velero get secret seaweedfs-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
+    AWS_ACCESS_KEY_ID=$(kubectl -n velero get secret minio-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
+    AWS_SECRET_ACCESS_KEY=$(kubectl -n velero get secret minio-s3 -o json -o=jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
+    ENDPOINT=$(kubectl -n velero get secret minio-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
 
     log_info "Connect to repo in seaweedfs s3 ${bucket}:${prefix}"
     kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf
@@ -216,8 +216,6 @@ case ${cmd} in
 	usage1
 	;;
     esac
-    # install package TODO move to pupppet??
-    # create certs
     ;;
   users)
     subcmd=$1
