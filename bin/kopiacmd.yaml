@@ -1,0 +1,36 @@
+kopiacmd:
+- --help
+- --version
+- repo
+- system
+- install
+- users
+- policy
+- completion
+
+kopiacmd repo:
+- create
+- connect
+kopiacmd repo create:
+kopiacmd repo connect:
+- $(ls /etc/kopia/config.d/*.conf | sed -e 's:.*/::' -e 's/.conf$//')
+
+kopiacmd system:
+- install
+- certs
+kopiacmd system install:
+- $(ls /etc/kopia/config.d/*.conf | sed -e 's:.*/::' -e 's/.conf$//')
+kopiacmd system certs:
+- $(ls /etc/kopia/config.d/*.conf | sed -e 's:.*/::' -e 's/.conf$//')
+
+kopiacmd users:
+- add
+kopiacmd users add:
+- $(ls /etc/kopia/config.d/*.conf | sed -e 's:.*/::' -e 's/.conf$//')
+
+kopiacmd policy:
+- global
+kopiacmd policy global:
+- $(ls /etc/kopia/config.d/*.conf | sed -e 's:.*/::' -e 's/.conf$//')
+
+kopiacmd completion:
