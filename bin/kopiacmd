@@ -3,15 +3,26 @@
 
 me=$(basename $0)
 
-topdir=/etc/kopia
+case $(uname) in
+Linux)  topdir=~/.config/kopia;;
+Darwin) topdir="~/Library/Application Support/kopia";;
+*)      log_error "Unknown OS $(uname), exiting"
+        exit 1
+        ;;
+esac
+#config_dir=${topdir}/config.d
+config_dir=${topdir}
+
+#topdir=/etc/kopia
 velerons=backup
 secret=theclarkhome-com-tls
 cert=${topdir}/${secret}
-config_dir=${topdir}/config.d
 folder_action="/bin/run-parts --report /etc/kopia"
 snapshot_action="/bin/run-parts --report /etc/kopia"
 repodir=/srv2/kopia
-export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+if [[ ! -f ~/.kube/config ]] ; then
+  export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+fi
 KOPIA_PASSWORD=$(kubectl -n ${velerons} get secret velero-repo-credentials -o json -o=jsonpath='{.data.repository-password}' | base64 -d)
 TYPE=filesystem
 
@@ -70,7 +81,7 @@ create_repo() {
   case ${type} in
   filesystem)
     log_info "Creating repo in ${repodir}"
-    kopia repository create filesystem --path ${repodir} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf
+    kopia repository create filesystem --path ${repodir} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
     ;;
 
   velero-monitoring|velero-default|velero-downloaders|velero-home-assistant|server-foxtrot|idrive-monitoring|idrive-default|idrive-downloaders|idrive-home-assistant)
@@ -81,7 +92,7 @@ create_repo() {
   rclone)
     local remote=onedrive-gary:/con/kopia 
     log_info "Creating repo in rclone ${remote}"
-    kopia repository create rclone --remote-path=${remote} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf
+    kopia repository create rclone --remote-path=${remote} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
     ;;
 
   idrive-kopia)
@@ -91,7 +102,7 @@ create_repo() {
     ENDPOINT=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
 
     log_info "Creating repo in idrive s3 ${bucket}:${prefix}"
-    kopia repository create s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf
+    kopia repository create s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
     ;;
 
   *)
@@ -106,7 +117,7 @@ connect_repo() {
   case ${type} in
   filesystem|rclone)
     log_info "Connect ${type}, repodir=${repodir}"
-    kopia repository connect from-config --file=${config_dir}/${type}.conf --password=${KOPIA_PASSWORD} --enable-actions
+    kopia repository connect from-config --file=${config_dir}/${type}.config --password=${KOPIA_PASSWORD} --enable-actions
     ;;
 
   server-foxtrot)
@@ -119,7 +130,7 @@ connect_repo() {
 	exit 1
       fi
     fi
-    #kopia repository connect server --url=https://${host}.theclarkhome.com:9000 --password=XXXXXXX --config-file=${config_dir}/${type}.conf --enable-actions
+    #kopia repository connect server --url=https://${host}.theclarkhome.com:9000 --password=XXXXXXX --config-file=${config_dir}/${type}.config --enable-actions
     ;;
 
   velero-monitoring|velero-default|velero-downloaders|velero-home-assistant)
@@ -130,7 +141,7 @@ connect_repo() {
     ENDPOINT=$(kubectl -n ${velerons} get secret minio-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
 
     log_info "Connect to repo in foxtrot s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --disable-tls  --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf
+    kopia repository connect s3 --disable-tls  --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
     ;;
   idrive-monitoring|idrive-default|idrive-downloaders|idrive-home-assistant)
     local bucket=velero
@@ -140,7 +151,7 @@ connect_repo() {
     ENDPOINT=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
 
     log_info "Connect to repo in idrive s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf
+    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
     ;;
 
   idrive-kopia)
@@ -150,7 +161,7 @@ connect_repo() {
     ENDPOINT=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
 
     log_info "Connecting repo in idrive s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.conf --enable-actions
+    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config --enable-actions
     ;;
 
   *)
@@ -158,8 +169,8 @@ connect_repo() {
     exit 1
     ;;
   esac
-  log_info "Use 'export KOPIA_CONFIG_PATH=${config_dir}/${type}.conf' or '--config-file=${config_dir}/${type}.conf' to continue using this repo" 
-  export KOPIA_CONFIG_PATH=${config_dir}/${type}.conf 
+  log_info "Use 'export KOPIA_CONFIG_PATH=${config_dir}/${type}.config' or '--config-file=${config_dir}/${type}.config' to continue using this repo" 
+  export KOPIA_CONFIG_PATH=${config_dir}/${type}.config 
   
 }
 
