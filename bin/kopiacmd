@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# TODO change the naming convention
+# eg 
+# velero-<ns> -> velero-foxtrot-<ns>
+# server-foxtrot -> kopia-foxtrot
+# idrive-kopia -> kopia-idrive
+# idrive-<ns> -> velero-idrive-<ns>
 
 me=$(basename $0)
 
@@ -130,7 +136,9 @@ connect_repo() {
 	exit 1
       fi
     fi
-    #kopia repository connect server --url=https://${host}.theclarkhome.com:9000 --password=XXXXXXX --config-file=${config_dir}/${type}.config --enable-actions
+# TODO use correct password from secret
+    kopia repository connect server --url=https://${host}.theclarkhome.com:51515 --config-file=${config_dir}/${type}.config --enable-actions --override-username root --override-hostname foxtrot --password=xxxxxx
+
     ;;
 
   velero-monitoring|velero-default|velero-downloaders|velero-home-assistant)
@@ -155,7 +163,7 @@ connect_repo() {
     ;;
 
   idrive-kopia)
-    local bucket=${type##-}
+    local bucket=${type##idrive-}
     AWS_ACCESS_KEY_ID=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
     AWS_SECRET_ACCESS_KEY=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
     ENDPOINT=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
