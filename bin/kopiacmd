@@ -90,7 +90,7 @@ create_repo() {
     kopia repository create filesystem --path ${repodir} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
     ;;
 
-  velero-monitoring|velero-default|velero-downloaders|velero-home-assistant|server-foxtrot|idrive-monitoring|idrive-default|idrive-downloaders|idrive-home-assistant)
+  velero-monitoring|velero-default|velero-downloaders|velero-media|velero-home-assistant|server-foxtrot|idrive-monitoring|idrive-default|idrive-downloaders|idrive-media|idrive-home-assistant)
     log_error "No need to create a ${type} repository, just connect"
     exit 1
     ;;
@@ -141,7 +141,7 @@ connect_repo() {
 
     ;;
 
-  velero-monitoring|velero-default|velero-downloaders|velero-home-assistant)
+  velero-monitoring|velero-default|velero-downloaders|velero-media|velero-home-assistant)
     local bucket=${type%%-*}
     local prefix=kopia/${type#velero-}/
     AWS_ACCESS_KEY_ID=$(kubectl -n ${velerons} get secret minio-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
@@ -151,7 +151,7 @@ connect_repo() {
     log_info "Connect to repo in foxtrot s3 ${bucket}:${prefix}"
     kopia repository connect s3 --disable-tls  --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
     ;;
-  idrive-monitoring|idrive-default|idrive-downloaders|idrive-home-assistant)
+  idrive-monitoring|idrive-default|idrive-downloaders|idrive-media|idrive-home-assistant)
     local bucket=velero
     local prefix=kopia/${type#idrive-}/
     AWS_ACCESS_KEY_ID=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
