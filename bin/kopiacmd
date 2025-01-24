@@ -19,6 +19,8 @@ esac
 #config_dir=${topdir}/config.d
 config_dir=${topdir}
 
+[[ -d ${topdir} ]] && mkdir -p ${topdir}
+
 #topdir=/etc/kopia
 # TODO get this namespace automatically??
 velerons=velero
