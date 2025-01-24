@@ -20,7 +20,8 @@ esac
 config_dir=${topdir}
 
 #topdir=/etc/kopia
-velerons=backup
+# TODO get this namespace automatically??
+velerons=velero
 secret=theclarkhome-com-tls
 cert=${topdir}/${secret}
 folder_action="/bin/run-parts --report /etc/kopia"
