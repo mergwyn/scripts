@@ -90,7 +90,7 @@ create_repo() {
   case ${type} in
   filesystem)
     log_info "Creating repo in ${repodir}"
-    kopia repository create filesystem --path ${repodir} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
+    kopia repository create filesystem --path ${repodir} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
     ;;
 
   velero-monitoring|velero-default|velero-downloaders|velero-media|velero-home-assistant|server-foxtrot|idrive-monitoring|idrive-default|idrive-downloaders|idrive-media|idrive-home-assistant)
@@ -101,7 +101,7 @@ create_repo() {
   rclone)
     local remote=onedrive-gary:/con/kopia 
     log_info "Creating repo in rclone ${remote}"
-    kopia repository create rclone --remote-path=${remote} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
+    kopia repository create rclone --remote-path=${remote} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
     ;;
 
   idrive-kopia)
@@ -111,7 +111,7 @@ create_repo() {
     ENDPOINT=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
 
     log_info "Creating repo in idrive s3 ${bucket}:${prefix}"
-    kopia repository create s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
+    kopia repository create s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
     ;;
 
   *)
@@ -140,7 +140,7 @@ connect_repo() {
       fi
     fi
 # TODO use correct password from secret
-    kopia repository connect server --url=https://${host}.theclarkhome.com:51515 --config-file=${config_dir}/${type}.config --enable-actions --override-username root --override-hostname foxtrot --password=xxxxxx
+    kopia repository connect server --url=https://${host}.theclarkhome.com:51515 --config-file="${config_dir}/${type}.config" --enable-actions 
 
     ;;
 
@@ -152,7 +152,7 @@ connect_repo() {
     ENDPOINT=$(kubectl -n ${velerons} get secret minio-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
 
     log_info "Connect to repo in foxtrot s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --disable-tls  --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
+    kopia repository connect s3 --disable-tls  --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
     ;;
   idrive-monitoring|idrive-default|idrive-downloaders|idrive-media|idrive-home-assistant)
     local bucket=velero
@@ -162,7 +162,7 @@ connect_repo() {
     ENDPOINT=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
 
     log_info "Connect to repo in idrive s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config
+    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
     ;;
 
   idrive-kopia)
@@ -172,7 +172,7 @@ connect_repo() {
     ENDPOINT=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
 
     log_info "Connecting repo in idrive s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file=${config_dir}/${type}.config --enable-actions
+    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config" --enable-actions
     ;;
 
   *)
@@ -193,7 +193,7 @@ add_users() {
 
 global_policy() {
   declare -A global
-  global[compression]=pgzip-best-speed
+  global[compression]=zstd
   global[keep-latest]=0
   global[keep-hourly]=24
   global[keep-daily]=7
@@ -232,6 +232,7 @@ case ${cmd} in
 	;;
       list)
 	echo "TODO!"
+        ls ${config_dir}/*.config | sed -e 's/.config$//' -e "s:^${config_dir}::"
 	;;
       *)
 	log_error "Unknown subcommand ${me} ${cmd} ${subcmd}"
