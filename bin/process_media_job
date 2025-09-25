@@ -146,8 +146,8 @@ ismounted "${TVDir}" && RemoveOrphans
 ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/TV" --humax --tvdb "${TVDir}"   	|| ExitCode+=$?
 ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/Other" --humax "${HumaxDir}"		|| ExitCode+=$?
 ismounted "${TVDir}" && "${PROG}" "$@" --output="/srv/media/humax/Films" --humax "${HumaxDir}/0 Films"	|| ExitCode+=$?
-"${PROG}" "$@" "/srv/media/content/tv"	      || ExitCode+=$?
-"${PROG}" "$@" "/srv/media/content/films"     || ExitCode+=$?
+#"${PROG}" "$@" "/srv/media/content/tv"	      || ExitCode+=$?
+#"${PROG}" "$@" "/srv/media/content/films"     || ExitCode+=$?
 
 exit $ExitCode
 # vim: sw=2 nu ai
