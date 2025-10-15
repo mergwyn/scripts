@@ -2,11 +2,16 @@
 
 # TODO change the naming convention
 # eg 
-# velero-<ns> -> velero-foxtrot-<ns>
-# server-foxtrot -> kopia-foxtrot
+# server-foxtrot -> kopia-minio
 # idrive-kopia -> kopia-idrive
 # idrive-<ns> -> velero-idrive-<ns>
+# velero-<ns> -> velero-minio-<ns>
 
+log_error() { echo "$@" >&2 ; }
+log_info() { echo "$@" ; }
+log_debug() { echo "DEBUG: $@" ; }
+
+cmd=$1
 me=$(basename $0)
 
 case $(uname) in
@@ -20,6 +25,46 @@ esac
 config_dir=${topdir}
 
 [[ -d ${topdir} ]] && mkdir -p ${topdir}
+declare -a valid_ns=( monitoring default downloaders media vpn home-assistant )
+declare -a valid_store=( minio idrivee2 )
+
+validate_type() {
+  type=$1
+  case ${type} in
+    velero*)
+      local bucket=velero
+      local stem=${type#velero-}
+      local store=${stem%%-*}
+      local ns=${type#velero-*-}
+      if [[ " ${valid_store[*]} " =~ " ${store} " ]] ; then
+        log_debug "Got valid store ${store}"
+      else
+        log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_store[*]}'"
+        return 1
+      fi
+      if [[ " ${valid_ns[*]} " =~ " ${ns} " ]] ; then
+        log_debug "Got valid ns ${ns}"
+      else
+        log_error "Invalid namespace ${ns} in ${type}. Needs to be one of '${valid_ns[*]}'"
+        return 1
+      fi
+      ;;
+    kopia*)
+      store=${type#kopia-}
+      if [[ " ${valid_store[*]} " =~ " ${store} " ]] ; then
+        log_debug "Got valid store ${store}"
+      else
+        log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_store[*]}'"
+        return 1
+      fi
+      ;;
+    *)
+      log_error Unknown type ${type}
+      return 1;;
+    # TODO add other types
+  esac
+  return 0
+}
 
 #topdir=/etc/kopia
 # TODO get this namespace automatically??
@@ -35,11 +80,6 @@ fi
 KOPIA_PASSWORD=$(kubectl -n ${velerons} get secret velero-repo-credentials -o json -o=jsonpath='{.data.repository-password}' | base64 -d)
 TYPE=filesystem
 
-log_error() { echo "$@" >&2 ; }
-log_info() { echo "$@" ; }
-log_debug() { echo "DEBUG: $@" ; }
-
-cmd=$1
 shift
 
 usage1() {
@@ -58,6 +98,12 @@ Commands:
     add repo_type
   policy
     global repo_type
+
+A repo_type is one of 
+a) filesystem rclone server-foxtrot
+b) kopia-<store> or velero-<store>-<ns>, where
+   Valid stores are '${valid_store[*]}'
+   Valid ns are '${valid_ns[*]}'
 EOF
 }
 
@@ -93,7 +139,7 @@ create_repo() {
     kopia repository create filesystem --path ${repodir} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
     ;;
 
-  velero-monitoring|velero-default|velero-downloaders|velero-media|velero-home-assistant|server-foxtrot|idrive-monitoring|idrive-default|idrive-downloaders|idrive-media|idrive-home-assistant)
+  velero-*)
     log_error "No need to create a ${type} repository, just connect"
     exit 1
     ;;
@@ -104,14 +150,19 @@ create_repo() {
     kopia repository create rclone --remote-path=${remote} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
     ;;
 
-  idrive-kopia)
-    local bucket=${type##idrive-}
-    AWS_ACCESS_KEY_ID=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
-    AWS_SECRET_ACCESS_KEY=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
-    ENDPOINT=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
+  kopia-*)
+    if ! validate_type ${type} ; then
+      log_error "cannot create, repo $type not supported"
+      exit 1
+    fi
 
-    log_info "Creating repo in idrive s3 ${bucket}:${prefix}"
-    kopia repository create s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
+    local bucket=kopia
+    local store=${type##kopia-}
+
+    source <(kubectl -n velero get secrets ${store}-s3 -o json '-o=jsonpath={.data}' | jq -r "to_entries|map(\"\(.key)=\(.value|@base64d)\")|.[]")
+
+    log_info "Creating kopia repo in ${store} s3 ${bucket}:${prefix}"
+    kopia repository create s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
     ;;
 
   *)
@@ -123,6 +174,10 @@ create_repo() {
 
 connect_repo() {
   local type=$1
+  if ! validate_type ${type} ; then
+    log_error "cannot connect, repo $type not supported"
+    exit 1
+  fi
   case ${type} in
   filesystem|rclone)
     log_info "Connect ${type}, repodir=${repodir}"
@@ -144,35 +199,29 @@ connect_repo() {
 
     ;;
 
-  velero-monitoring|velero-default|velero-downloaders|velero-media|velero-home-assistant)
-    local bucket=${type%%-*}
-    local prefix=kopia/${type#velero-}/
-    AWS_ACCESS_KEY_ID=$(kubectl -n ${velerons} get secret minio-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
-    AWS_SECRET_ACCESS_KEY=$(kubectl -n ${velerons} get secret minio-s3 -o json -o=jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
-    ENDPOINT=$(kubectl -n ${velerons} get secret minio-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
-
-    log_info "Connect to repo in foxtrot s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --disable-tls  --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
-    ;;
-  idrive-monitoring|idrive-default|idrive-downloaders|idrive-media|idrive-home-assistant)
+  velero-*)
     local bucket=velero
-    local prefix=kopia/${type#idrive-}/
-    AWS_ACCESS_KEY_ID=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
-    AWS_SECRET_ACCESS_KEY=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
-    ENDPOINT=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
+    local stem=${type#velero-}
+    local store=${stem%%-*}
+    local ns=${type#velero-*-}
+    local prefix=kopia/${ns}/
+    source <(kubectl -n velero get secrets ${store}-s3 -o json '-o=jsonpath={.data}' | jq -r "to_entries|map(\"\(.key)=\(.value|@base64d)\")|.[]")
 
-    log_info "Connect to repo in idrive s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
+    tls=
+    [[ ${store} == minio ]] && tls=--disable-tls
+    log_info "Connect to velero repo in ${store} s3 ${bucket}:${prefix}"
+    kopia repository connect s3 ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
+
     ;;
 
-  idrive-kopia)
-    local bucket=${type##idrive-}
-    AWS_ACCESS_KEY_ID=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
-    AWS_SECRET_ACCESS_KEY=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
-    ENDPOINT=$(kubectl -n ${velerons} get secret idrivee2-s3 -o json -o=jsonpath='{.data.ENDPOINT}' | base64 -d)
+  kopia-*)
+    local bucket=kopia
+    local store=${type#kopia-}
 
-    log_info "Connecting repo in idrive s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${AWS_ACCESS_KEY_ID} --secret-access-key=${AWS_SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config" --enable-actions
+    source <(kubectl -n velero get secrets ${store}-s3 -o json '-o=jsonpath={.data}' | jq -r "to_entries|map(\"\(.key)=\(.value|@base64d)\")|.[]")
+
+    log_info "Connecting kopia repo in ${store} s3 ${bucket}:${prefix}"
+    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config" --enable-actions
     ;;
 
   *)
