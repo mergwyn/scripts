@@ -2,10 +2,6 @@
 
 # TODO change the naming convention
 # eg 
-# server-foxtrot -> kopia-minio
-# idrive-kopia -> kopia-idrive
-# idrive-<ns> -> velero-idrive-<ns>
-# velero-<ns> -> velero-minio-<ns>
 
 log_error() { echo "$@" >&2 ; }
 log_info() { echo "$@" ; }
@@ -26,7 +22,8 @@ config_dir=${topdir}
 
 [[ -d ${topdir} ]] && mkdir -p ${topdir}
 declare -a valid_ns=( monitoring default downloaders media vpn home-assistant )
-declare -a valid_store=( minio idrivee2 )
+declare -a valid_v_store=( minio idrivee2 )
+declare -a valid_k_store=( foxtrot idrivee2 )
 
 validate_type() {
   type=$1
@@ -36,7 +33,7 @@ validate_type() {
       local stem=${type#velero-}
       local store=${stem%%-*}
       local ns=${type#velero-*-}
-      if [[ " ${valid_store[*]} " =~ " ${store} " ]] ; then
+      if [[ " ${valid_v_store[*]} " =~ " ${store} " ]] ; then
         log_debug "Got valid store ${store}"
       else
         log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_store[*]}'"
@@ -51,12 +48,14 @@ validate_type() {
       ;;
     kopia*)
       store=${type#kopia-}
-      if [[ " ${valid_store[*]} " =~ " ${store} " ]] ; then
+      if [[ " ${valid_k_store[*]} " =~ " ${store} " ]] ; then
         log_debug "Got valid store ${store}"
       else
         log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_store[*]}'"
         return 1
       fi
+      ;;
+    kopia-foxtrot|filesystem|rclone)
       ;;
     *)
       log_error Unknown type ${type}
@@ -100,9 +99,11 @@ Commands:
     global repo_type
 
 A repo_type is one of 
-a) filesystem rclone server-foxtrot
-b) kopia-<store> or velero-<store>-<ns>, where
-   Valid stores are '${valid_store[*]}'
+a) filesystem rclone 
+b) kopia-<store>
+   Valid stores are '${valid_k_store[*]}'
+c) velero-<store>-<ns>, where
+   Valid stores are '${valid_v_store[*]}'
    Valid ns are '${valid_ns[*]}'
 EOF
 }
@@ -184,8 +185,8 @@ connect_repo() {
     kopia repository connect from-config --file=${config_dir}/${type}.config --password=${KOPIA_PASSWORD} --enable-actions
     ;;
 
-  server-foxtrot)
-    local host=${type##server-}
+  kopia-foxtrot)
+    local host=${type##kopia-}
     log_info "Connect to server on host"
     if [[ $(hostname) == ${host} ]] ; then
       if [[ $(hostname -i) == 127* ]] ; 
@@ -197,6 +198,16 @@ connect_repo() {
 # TODO use correct password from secret
     kopia repository connect server --url=https://${host}.theclarkhome.com:51515 --config-file="${config_dir}/${type}.config" --enable-actions 
 
+    ;;
+
+  kopia-*)
+    local bucket=kopia
+    local store=${type#kopia-}
+
+    source <(kubectl -n velero get secrets ${store}-s3 -o json '-o=jsonpath={.data}' | jq -r "to_entries|map(\"\(.key)=\(.value|@base64d)\")|.[]")
+
+    log_info "Connecting kopia repo in ${store} s3 ${bucket}:${prefix}"
+    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config" --enable-actions
     ;;
 
   velero-*)
@@ -212,16 +223,6 @@ connect_repo() {
     log_info "Connect to velero repo in ${store} s3 ${bucket}:${prefix}"
     kopia repository connect s3 ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
 
-    ;;
-
-  kopia-*)
-    local bucket=kopia
-    local store=${type#kopia-}
-
-    source <(kubectl -n velero get secrets ${store}-s3 -o json '-o=jsonpath={.data}' | jq -r "to_entries|map(\"\(.key)=\(.value|@base64d)\")|.[]")
-
-    log_info "Connecting kopia repo in ${store} s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config" --enable-actions
     ;;
 
   *)
