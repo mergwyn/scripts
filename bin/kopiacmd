@@ -36,7 +36,7 @@ validate_type() {
       if [[ " ${valid_v_store[*]} " =~ " ${store} " ]] ; then
         log_debug "Got valid store ${store}"
       else
-        log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_store[*]}'"
+        log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_v_store[*]}'"
         return 1
       fi
       if [[ " ${valid_ns[*]} " =~ " ${ns} " ]] ; then
@@ -51,7 +51,7 @@ validate_type() {
       if [[ " ${valid_k_store[*]} " =~ " ${store} " ]] ; then
         log_debug "Got valid store ${store}"
       else
-        log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_store[*]}'"
+        log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_k_store[*]}'"
         return 1
       fi
       ;;
