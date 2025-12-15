@@ -5,7 +5,7 @@
 
 log_error() { echo "$@" >&2 ; }
 log_info() { echo "$@" ; }
-log_debug() { echo "DEBUG: $@" ; }
+log_debug() { : #echo "DEBUG: $@" ; }
 
 cmd=$1
 me=$(basename $0)
@@ -125,8 +125,8 @@ install_package() {
 }
 create_cert() {
   log_info "Extracting certs fom k8s secret ${secret}"
-  kubectl -n kube-system get secrets ${secret} -o json -o=jsonpath="{.data.tls\.key}" | base64 -d > ${cert}.key
-  kubectl -n kube-system get secrets ${secret} -o json -o=jsonpath="{.data.tls\.crt}" | base64 -d > ${cert}.cert
+  kubectl -n network get secrets ${secret} -o json -o=jsonpath="{.data.tls\.key}" | base64 -d > ${cert}.key
+  kubectl -n network get secrets ${secret} -o json -o=jsonpath="{.data.tls\.crt}" | base64 -d > ${cert}.cert
 
   log_info "Server finger print is:"
   openssl x509 -in ${cert}.cert -noout -fingerprint -sha256 | sed 's/://g' | cut -f 2 -d =
