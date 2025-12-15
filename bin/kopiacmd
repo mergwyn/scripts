@@ -5,7 +5,7 @@
 
 log_error() { echo "$@" >&2 ; }
 log_info() { echo "$@" ; }
-log_debug() { : #echo "DEBUG: $@" ; }
+log_debug() { echo "DEBUG: $@" ; }
 
 cmd=$1
 me=$(basename $0)
@@ -34,13 +34,13 @@ validate_type() {
       local store=${stem%%-*}
       local ns=${type#velero-*-}
       if [[ " ${valid_v_store[*]} " =~ " ${store} " ]] ; then
-        log_debug "Got valid store ${store}"
+        : #log_debug "Got valid store ${store}"
       else
         log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_v_store[*]}'"
         return 1
       fi
       if [[ " ${valid_ns[*]} " =~ " ${ns} " ]] ; then
-        log_debug "Got valid ns ${ns}"
+        : #log_debug "Got valid ns ${ns}"
       else
         log_error "Invalid namespace ${ns} in ${type}. Needs to be one of '${valid_ns[*]}'"
         return 1
