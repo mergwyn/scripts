@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 
-# TODO change the naming convention
-# eg 
-
-log_error() { echo "$@" >&2 ; }
-log_info() { echo "$@" ; }
-log_debug() { echo "DEBUG: $@" ; }
+# shellcheck source=/dev/null
+for function in "$(dirname "$0")"/../functions/*.sh; do source "${function}"; done
 
 cmd=$1
 me=$(basename $0)
@@ -34,13 +30,13 @@ validate_type() {
       local store=${stem%%-*}
       local ns=${type#velero-*-}
       if [[ " ${valid_v_store[*]} " =~ " ${store} " ]] ; then
-        : #log_debug "Got valid store ${store}"
+        log_debug "Got valid store ${store}"
       else
         log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_v_store[*]}'"
         return 1
       fi
       if [[ " ${valid_ns[*]} " =~ " ${ns} " ]] ; then
-        : #log_debug "Got valid ns ${ns}"
+        log_debug "Got valid ns ${ns}"
       else
         log_error "Invalid namespace ${ns} in ${type}. Needs to be one of '${valid_ns[*]}'"
         return 1
@@ -173,6 +169,7 @@ create_repo() {
   esac
 }
 
+# TODO add --description to connect
 connect_repo() {
   local type=$1
   if ! validate_type ${type} ; then
@@ -287,7 +284,7 @@ case ${cmd} in
 	connect_repo ${1:=${TYPE}}
 	;;
       list)
-	echo "TODO!"
+	log_warn  "TODO!"
         ls ${config_dir}/*.config | sed -e 's/.config$//' -e "s:^${config_dir}::"
 	;;
       *)
