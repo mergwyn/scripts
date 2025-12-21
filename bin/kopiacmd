@@ -211,7 +211,7 @@ connect_repo() {
     minio|rustfs) tls=--disable-tls;;
     esac
     log_info "Connecting kopia repo in ${store} s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --log-level=warning ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config" --enable-actions
+    kopia repository connect s3 --log-level=warning ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config" --enable-actions --description="Repository in S3: ${type}"
     ;;
 
   velero-*)
@@ -227,7 +227,7 @@ connect_repo() {
     minio|rustfs) tls=--disable-tls;;
     esac
     log_info "Connect to velero repo in ${store} s3 ${bucket}:${prefix}"
-    kopia repository connect s3 --log-level=warning ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
+    kopia repository connect s3 --log-level=warning ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config" --description="Repository in S3: ${type}"
 
     ;;
 
