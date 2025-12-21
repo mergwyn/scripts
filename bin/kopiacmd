@@ -88,6 +88,7 @@ Commands:
     create repo_type
     connect repo_type
     list
+    valid
   system
     install
     certs
@@ -210,7 +211,7 @@ connect_repo() {
     minio|rustfs) tls=--disable-tls;;
     esac
     log_info "Connecting kopia repo in ${store} s3 ${bucket}:${prefix}"
-    kopia repository connect s3 -log-leveo=warning ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config" --enable-actions
+    kopia repository connect s3 --log-level=warning ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config" --enable-actions
     ;;
 
   velero-*)
@@ -226,7 +227,7 @@ connect_repo() {
     minio|rustfs) tls=--disable-tls;;
     esac
     log_info "Connect to velero repo in ${store} s3 ${bucket}:${prefix}"
-    kopia repository connect s3 ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
+    kopia repository connect s3 --log-level=warning ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --prefix=${prefix} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
 
     ;;
 
@@ -288,6 +289,23 @@ case ${cmd} in
       list)
 	log_warn  "TODO!"
         ls ${config_dir}/*.config | sed -e 's/.config$//' -e "s:^${config_dir}::"
+	;;
+      valid)
+	case $1 in
+          velero)
+            for((i=0;i<${#valid_v_store[@]};i++));
+            do
+              for ((j=0;j<${#valid_ns[@]};j++))
+              do
+                echo velero-${valid_v_store[i]}-${valid_ns[j]}
+              done
+            done;;
+          kopia)
+            for((i=0;i<${#valid_k_store[@]};i++));
+            do
+              echo kopia-${valid_k_store[i]}
+            done;;
+        esac
 	;;
       *)
 	log_error "Unknown subcommand ${me} ${cmd} ${subcmd}"

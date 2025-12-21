@@ -11,9 +11,19 @@ kopiacmd:
 kopiacmd repo:
 - create
 - connect
+- list
+- valid
 kopiacmd repo create:
+- TODO
 kopiacmd repo connect:
 - $(ls ~/.config/kopia/*.config | sed -e 's:.*/::' -e 's/.config$//')
+kopiacmd repo valid:
+- kopia
+- veloro
+kopiacmd repo valid velero:
+- $(kopiacmd repo valid velero)
+kopiacmd repo valid kopia:
+- $(kopiacmd repo valid kopia)
 
 kopiacmd system:
 - install
@@ -34,3 +44,4 @@ kopiacmd policy global:
 - $(ls ~/.config/kopia/*.config | sed -e 's:.*/::' -e 's/.config$//')
 
 kopiacmd completion:
+- TODO
