@@ -128,7 +128,7 @@ create_cert() {
   kubectl -n network get secrets ${secret} -o json -o=jsonpath="{.data.tls\.crt}" | base64 -d > ${cert}.cert
 
   log_info "Server finger print is:"
-  openssl x509 -in ${cert}.cert -noout -fingerprint -sha256 | sed 's/://g' | cut -f 2 -d =
+  openssl x509 -in ${cert}.cert -noout -fingerprint -sha256 | sed 's/://g' | cut -f 2 -d = log_error
 }
 
 create_repo() {
