@@ -20,8 +20,8 @@ config_dir=${topdir}
 
 [[ -d ${topdir} ]] && mkdir -p ${topdir}
 declare -a valid_ns=( monitoring default downloaders media vpn home-assistant system )
-declare -a valid_v_store=( minio idrivee2 rustfs )
-declare -a valid_k_store=( foxtrot idrivee2 rustfs)
+declare -a valid_v_store=( idrivee2 rustfs )
+declare -a valid_k_store=( idrivee2 rustfs )
 
 validate_type() {
   type=$1
