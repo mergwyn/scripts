@@ -19,9 +19,9 @@ esac
 config_dir=${topdir}
 
 [[ -d ${topdir} ]] && mkdir -p ${topdir}
-declare -a valid_ns=( monitoring default downloaders media vpn home-assistant system )
-declare -a valid_v_store=( idrivee2 rustfs )
-declare -a valid_k_store=( idrivee2 rustfs )
+declare -a valid_ns=( monitoring downloaders media vpn home-assistant system )
+declare -a valid_v_store=( idrivee2 minio )
+declare -a valid_k_store=( idrivee2 minio )
 
 validate_type() {
   type=$1
@@ -161,8 +161,12 @@ create_repo() {
 
     source <(kubectl -n velero get secrets ${store}-s3 -o json '-o=jsonpath={.data}' | jq -r "to_entries|map(\"\(.key)=\(.value|@base64d)\")|.[]")
 
+    tls=
+    case ${store} in
+    minio|rustfs) tls=--disable-tls;;
+    esac
     log_info "Creating kopia repo in ${store} s3 ${bucket}:${prefix}"
-    kopia repository create s3 --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
+    kopia repository create s3 ${tls} --endpoint=${ENDPOINT} --bucket=${bucket} --access-key=${ACCESS_KEY_ID} --secret-access-key=${SECRET_ACCESS_KEY} --password=${KOPIA_PASSWORD} --config-file="${config_dir}/${type}.config"
     ;;
 
   *)
