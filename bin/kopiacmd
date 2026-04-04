@@ -85,9 +85,11 @@ connect_repo() {
         --password="${KOPIA_PASSWORD}" \
         --config-file="${config_dir}/${type}.config" \
         --enable-actions \
+        --log-level=warning \
         --description="BWS Managed: ${type}"
 
     export KOPIA_CONFIG_PATH="${config_dir}/${type}.config"
+    log_notice "Use 'export KOPIA_CONFIG_PATH=${config_dir}/${type}.config' or '--config-file=${config_dir}/${type}.config' to continue using this repo" 
 }
 
 global_policy() {
