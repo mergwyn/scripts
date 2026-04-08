@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+# TODO add support to loop through remiote hosts
+inxi -CGDmNMS
