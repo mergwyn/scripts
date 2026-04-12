@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
 set -o nounset
 
 DEBUGLOG=true
@@ -20,7 +21,7 @@ trap finish EXIT
 Usage()
 {
   cat <<EOF >&2
-$0: <flags> 
+$0: <flags>
 Allowed flags are:
 -k|--keep     Number of versions to keep [default ${keep}
 --help        Print this message
@@ -73,7 +74,7 @@ cleanBackups()
   done
 }
 
-for where in $(ls -d ${gpoDir}/*/GPO)
+for where in $(ls -d ${gpoDir}/*/GPO 2>/dev/null)
 do
   declare -i count=0
   backups=($(ls -1t ${where} 2> /dev/null))
@@ -102,14 +103,14 @@ do
       log_debug ${GPOGuid} ${ID} ${GPODisplayName}
       log_debug Searching for ${GPOGuid} :
       prevID=$(processManifest "${where}/${prev}"/manifest.xml | grep "${GPOGuid}" | cut -d ' ' -f 2)
-      prevDir="${where}/${prev}/${prevID}" 
+      prevDir="${where}/${prev}/${prevID}"
       if [[ ! -d "${prevDir}" ]]
       then
         log_debug Previous dir for ${ID}: ${prevDir} does not exist
         backupChanged="backupChanged"
         break
       fi
-      latestDir="${where}/${latest}/${ID}" 
+      latestDir="${where}/${latest}/${ID}"
       diff --brief "${latestDir}"/Backup.xml "${prevDir}"/Backup.xml 2>/dev/null > ${scratch}
       result=$?
       if [[ ${result} != 0 ]]
@@ -121,11 +122,11 @@ do
     done < <(processManifest "${where}/${latest}"/manifest.xml)
     log_debug Backup Changed is: $backupChanged
 
-    if [[ ! "${backupChanged}" ]] 
+    if [[ ! "${backupChanged}" ]]
     then
-      log_notice Backup not changed, deleting "${where}/${latest}" 
-      log_debug rm -rf "${where}/${latest}" 
-      rm -rf "${where}/${latest}" 
+      log_notice Backup not changed, deleting "${where}/${latest}"
+      log_debug rm -rf "${where}/${latest}"
+      rm -rf "${where}/${latest}"
     fi
   done
 
