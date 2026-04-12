@@ -1,4 +1,38 @@
 #!/usr/bin/env bash
 
-# TODO add support to loop through remiote hosts
-inxi -CGDmNMS
+# TODO add support to loop through remote hosts
+
+HOSTS=()
+REMOTE_USER="${SSH_USER:-$(whoami)}"
+
+usage() {
+    echo "Usage: $(basename "$0") [-h host1,host2,...] [-u remote_user]"
+    echo "  -h  Comma-separated list of hosts to run on remotely"
+    echo "  -u  Remote user for SSH (default: current user or SSH_USER env var)"
+    echo ""
+    echo "If no hosts are specified, runs locally."
+    exit 1
+}
+
+while getopts ":h:u:" opt; do
+    case $opt in
+        h) IFS=',' read -ra HOSTS <<< "$OPTARG" ;;
+        u) REMOTE_USER="$OPTARG" ;;
+        \?) echo "Invalid option: -$OPTARG" >&2; usage ;;
+        :)  echo "Option -$OPTARG requires an argument." >&2; usage ;;
+    esac
+done
+
+CMD="inxi -CGDmNMS"
+
+if [ ${#HOSTS[@]} -eq 0 ]; then
+    # No hosts specified, run locally
+    $CMD
+else
+    # Run on each remote host via SSH
+    for host in "${HOSTS[@]}"; do
+        echo "=== $host ==="
+        ssh "${REMOTE_USER}@${host}" "$CMD" 2>&1
+        echo ""
+    done
+fi
