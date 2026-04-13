@@ -99,7 +99,7 @@ SafeDelete()
     log_debug "SafeDelete file=${filename}, base=${base}, target=${target}, subdir=${subdir}"
     ${mkdir} -p "${target}"
     log_debug ${mv} "${file}" "${target}"
-    ${mv} "${file}" "${target}" && 
+    ${mv} "${file}" "${target}" &&
       ${touch} "${target}/${filename}${suffix}"
   fi
 }
@@ -116,7 +116,7 @@ CheckState()
 
   log_debug "Checkstate($1}"
 
-  while IFS='|' read output input 
+  while IFS='|' read output input
   do
     log_debug "input=${input}, output=${output}"
     inputdir=$(dirname "${input}")
@@ -129,7 +129,7 @@ CheckState()
     log_debug "One or other file does not exist"
     if [[ -f "${output}" && ! -f "${input}" ]]
     then
-      # so the output file exists but not the input, so delete the output file 
+      # so the output file exists but not the input, so delete the output file
       # note only transcoded files are in the state file
       # we could test here if the input file has got a '.oriignal' suffix
       log_notice "Output file exists but not input, delete output: $output"
@@ -137,7 +137,7 @@ CheckState()
     fi
     if [[ -f "${input}" && ! -f "${output}" ]]
     then
-      # so the input file exists but not the output, so delete the input file 
+      # so the input file exists but not the output, so delete the input file
       # note only transcoded files are in the state file
       # otherwise delete the output file
       log_notice "Input file exists but not output, delete input: $input"
@@ -150,8 +150,8 @@ CheckState()
   [[ "${sedscript}" ]] && ${sed} -e "${sedscript}" -i "${state}"
 
   # Finally clean the directories
-  log_debug Trash files to delete $(find "${topdir}/${localBin}" -type f -mtime +${trashDeleteDays} -print)
-  find "${topdir}/${localBin}" -type f -mtime +${trashDeleteDays} -exec ${rm} {} \;
+  log_debug Trash files to delete $(find "${topdir}/${localBin}" -type f -mtime +${trashDeleteDays} -print 2>/dev/null)
+  find "${topdir}/${localBin}" -type f -mtime +${trashDeleteDays} -exec ${rm} {} \; 2>/dev/null
   log_debug ${rmdir} "${topdir}/${localBin}/"*
   ${rmdir} "${topdir}/${localBin}/"* 2>/dev/null
   log_debug ${rmdir} ${topdir}/*
@@ -191,7 +191,7 @@ do
   esac
 done
 
-if [[ $# != 0 ]] 
+if [[ $# != 0 ]]
 then
   log_debug "Directories on command line, clearing defaults"
   dirs=()
@@ -225,12 +225,12 @@ fi
 log_debug "renice -n $reniceValue $$"
 if [[ $reniceValue != 0 ]]
 then
-  log_debug renice -n $reniceValue $$ 
+  log_debug renice -n $reniceValue $$
   renice -n $reniceValue $$ 2>&1 > /dev/null
   log_debug renice completed with $?
 fi
 
-for p in  "${prune[@]}" 
+for p in  "${prune[@]}"
 do
   [[ $pruneList ]] && pruneList="${pruneList} -o "
   pruneList="${pruneList} -name \""${p}"\" -prune"
@@ -245,16 +245,16 @@ done
 for d in  "${dirs[@]}"
 do
   log_info Searching dir: $d
- 
+
   if [[ ! -d "$d" ]]
   then
-    log_warn dir $d does not exist 
+    log_warn dir $d does not exist
     continue
   fi
 
   [[ "${outputDir}" ]] && stateFile="${outputDir}"/.state || stateFile="${d}"/.state
   CheckState "${stateFile}"
-  
+
   if [[ -f "${d}"/.ignore ]]
   then
     log_info ".ignore present, ignoring $d"
@@ -276,14 +276,14 @@ do
       log_debug Processing file: "${f}"
       dir=$(dirname "${f}")
       # any reason to ignore this file or directory
-      if [[ ! ${tvdb} && -f "${dir}"/.tvdbseriesid ]] 
+      if [[ ! ${tvdb} && -f "${dir}"/.tvdbseriesid ]]
       then
-        log_info ".tvdbseriesid present, ignoring $dir" 
+        log_info ".tvdbseriesid present, ignoring $dir"
 	continue
       fi
       if [[ -f "${dir}"/.ignore ]]
       then
-	log_info ".ignore present, ignoring $dir" 
+	log_info ".ignore present, ignoring $dir"
 	continue
       fi
 
@@ -302,7 +302,7 @@ do
 	  log_debug "${f} is decrypted"
         fi
       fi
-  
+
       if [[ ${outputDir} =~ ^/ ]]
       then
 	[[ ${humax} ]] && outputPath="${outputDir}${dir#${d}}" ||  outputPath="${outputDir}"
@@ -312,14 +312,14 @@ do
       output="$outputPath/$name${outputSuffix}"
       log_debug "output is '${output}'"
 
-      if [[ -f "${output}" ]] 
+      if [[ -f "${output}" ]]
       then
 	log_info "${output} already exists, not converting"
 	log_debug input $(ls -l "${output}")
 	log_debug output $(ls -l "${output}")
       else
         log_notice "Transcoding ${input} to  ${outputPath}"
-        log_debug ${transcode} --moveto="${outputPath}" ${transcodeArgs} --input="${input}" 2>&1 
+        log_debug ${transcode} --moveto="${outputPath}" ${transcodeArgs} --input="${input}" 2>&1
         ${transcode} --moveto="${outputPath}" ${transcodeArgs} --input="${input}" 2>&1 | log_output
         result=${PIPESTATUS[0]}
 	log_debug transcode output: $(ls -l "${output}" 2>/dev/null)
@@ -327,7 +327,7 @@ do
 	then
 	  log_notice Transcode successful
 	  log_debug d=${d}, outputPath=${outputPath}, outputDir=${outputDir}
-	  if [[ ! ${outputDir} ]] 
+	  if [[ ! ${outputDir} ]]
 	  then
 	    ${mv} "${input}" "${input}"${convertedSuffix}
 	    input="${input}"${convertedSuffix}
