@@ -112,6 +112,18 @@ global_policy() {
         --after-snapshot-root-action="${action_base}/snap-after"
 }
 
+path_policy() {
+  local path=$1
+  shift 1
+  source /etc/default/kopia
+  for type in ${REPOS}; do
+    connect_repo "$type" || exit 1
+    log_info "Setting path policy for ${path} on ${type}..."
+    kopia policy set "${path}" "$@" \
+      --config-file="${config_dir}/${type}.config"
+  done
+}
+
 # --- Command Switch ---
 case ${cmd} in
   repo)
@@ -128,17 +140,11 @@ case ${cmd} in
       list) ls "${config_dir}"/*.config 2>/dev/null | sed 's/\.config$//' ;;
     esac
     ;;
-  policy) [[ $2 == "global" ]] && global_policy "$3" ;;
-  path_policy)
-    local path=$3
-    shift 3
-    source /etc/default/kopia
-    for type in ${REPOS}; do
-      connect_repo "$type" || exit 1
-      log_info "Setting path policy for ${path} on ${type}..."
-      kopia policy set "${path}" "$@" \
-        --config-file="${config_dir}/${type}.config"
-    done
+  policy)
+    case $2 in
+      global) global_policy "$3" ;;
+      path)   path_policy "$3" "${@:4}" ;;
+    esac
     ;;
   system)
     if [[ $2 == "certs" ]]; then
