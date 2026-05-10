@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+#TODO: fill out support for path_policy
+
 # shellcheck source=/dev/null
 for function in "$(dirname "$0")"/../functions/*.sh; do source "${function}"; done
 
@@ -75,7 +77,7 @@ connect_repo() {
     load_bws_s3 "$store" || return 1
 
     log_info "Connecting: ${type} -> ${ENDPOINT} [Bucket: ${bucket}]"
-    
+
     kopia repository connect s3 ${TLS_FLAG} \
         --endpoint="${ENDPOINT}" \
         --bucket="${bucket}" \
@@ -89,16 +91,16 @@ connect_repo() {
         --description="BWS Managed: ${type}"
 
     export KOPIA_CONFIG_PATH="${config_dir}/${type}.config"
-    log_notice "Use 'export KOPIA_CONFIG_PATH=${config_dir}/${type}.config' or '--config-file=${config_dir}/${type}.config' to continue using this repo" 
+    log_notice "Use 'export KOPIA_CONFIG_PATH=${config_dir}/${type}.config' or '--config-file=${config_dir}/${type}.config' to continue using this repo"
 }
 
 global_policy() {
     local type=$1
     connect_repo "$type" || exit 1
-    
+
     # Your original run-parts action hooks
     local action_base="/bin/run-parts --report /etc/kopia"
-    
+
     log_info "Setting global policy for ${type}..."
     kopia policy set --global \
         --compression=zstd \
@@ -116,7 +118,7 @@ case ${cmd} in
     sub=$2; type=$3
     case ${sub} in
       connect) connect_repo "$type" ;;
-      create)  
+      create)
         [[ $type == kopia-* ]] || { log_error "Velero repos are connect-only"; exit 1; }
         load_bws_s3 "${type#kopia-}"
         kopia repository create s3 ${TLS_FLAG} --endpoint="${ENDPOINT}" --bucket="kopia" \
@@ -127,6 +129,17 @@ case ${cmd} in
     esac
     ;;
   policy) [[ $2 == "global" ]] && global_policy "$3" ;;
+  path_policy)
+    local path=$3
+    shift 3
+    source /etc/default/kopia
+    for type in ${REPOS}; do
+      connect_repo "$type" || exit 1
+      log_info "Setting path policy for ${path} on ${type}..."
+      kopia policy set "${path}" "$@" \
+        --config-file="${config_dir}/${type}.config"
+    done
+    ;;
   system)
     if [[ $2 == "certs" ]]; then
        log_warn "Certs still require kubectl access to the cluster."
