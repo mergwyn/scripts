@@ -18,6 +18,80 @@ esac
 config_dir=${topdir}
 [[ -d ${topdir} ]] || mkdir -p ${topdir}
 
+
+declare -a valid_v_store=( idrivee2 minio )
+declare -a valid_k_store=( idrivee2 minio )
+
+validate_type() {
+  type=$1
+  case ${type} in
+    velero*)
+      local bucket=velero
+      local stem=${type#velero-}
+      local store=${stem%%-*}
+      local ns=${type#velero-*-}
+      if [[ " ${valid_v_store[*]} " =~ " ${store} " ]] ; then
+        log_debug "Got valid store ${store}"
+      else
+        log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_v_store[*]}'"
+        return 1
+      fi
+      if [[ " ${valid_ns[*]} " =~ " ${ns} " ]] ; then
+        log_debug "Got valid ns ${ns}"
+      else
+        log_error "Invalid namespace ${ns} in ${type}. Needs to be one of '${valid_ns[*]}'"
+        return 1
+      fi
+      ;;
+    kopia*)
+      store=${type#kopia-}
+      if [[ " ${valid_k_store[*]} " =~ " ${store} " ]] ; then
+        log_debug "Got valid store ${store}"
+      else
+        log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_k_store[*]}'"
+        return 1
+      fi
+      ;;
+    kopia-foxtrot|filesystem|rclone)
+      ;;
+    *)
+      log_error Unknown type ${type}
+      return 1;;
+    # TODO add other types
+  esac
+  return 0
+}
+
+usage1() {
+  cat <<EOF >&1
+Usage: ${me} <command>
+
+Commands:
+  repo
+    create repo_type
+    connect repo_type
+    list
+    valid
+  system
+    install
+    certs
+  users
+    add repo_type
+  policy
+    global repo_type
+    path snapname repo_type [repo_type...]
+
+A repo_type is one of
+a) filesystem rclone
+b) kopia-<store>
+   Valid stores are '${valid_k_store[*]}'
+c) velero-<store>-<ns>, where
+   Valid stores are '${valid_v_store[*]}'
+   Valid ns are '${valid_ns[*]}'
+EOF
+}
+
+
 # Load BWS Token (suggested path for your roll-out)
 [[ -f "/etc/kopia/.bws_env" ]] && source "/etc/kopia/.bws_env"
 [[ -z "${BWS_ACCESS_TOKEN}" ]] && { log_error "BWS_ACCESS_TOKEN not set"; exit 1; }
@@ -63,6 +137,11 @@ connect_repo() {
     local type=$1
     local bucket="kopia"
     local prefix=""
+
+    if ! validate_type ${type} ; then
+      log_error "cannot connect, repo $type not supported"
+      exit 1
+    fi
 
     if [[ $type == velero-* ]]; then
         local stem=${type#velero-}
@@ -138,6 +217,20 @@ case ${cmd} in
             --password="${KOPIA_PASSWORD}" --config-file="${config_dir}/${type}.config"
         ;;
       list) ls "${config_dir}"/*.config 2>/dev/null | sed 's/\.config$//' ;;
+      valid)
+    	case $1 in
+            velero)
+                for((i=0;i<${#valid_v_store[@]};i++)); do
+                    for ((j=0;j<${#valid_ns[@]};j++)) ;  do
+                        echo velero-${valid_v_store[i]}-${valid_ns[j]}
+                    done
+                done;;
+            kopia)
+                for((i=0;i<${#valid_k_store[@]};i++)); do
+                    echo kopia-${valid_k_store[i]}
+                done;;
+            esac
+    	;;
     esac
     ;;
   policy)
