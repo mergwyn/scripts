@@ -106,10 +106,10 @@ global_policy() {
         --compression=zstd \
         --keep-latest=0 --keep-hourly=24 --keep-daily=7 --keep-weekly=4 --keep-monthly=12 --keep-annual=0 \
         --ignore-identical-snapshots=false --ignore-unknown-types=true \
-        --before-folder-action="${action_base}/folder-before" \
-        --after-folder-action="${action_base}/folder-after" \
-        --before-snapshot-root-action="${action_base}/snap-before" \
-        --after-snapshot-root-action="${action_base}/snap-after"
+        --before-folder-action="" \
+        --after-folder-action="" \
+        --before-snapshot-root-action="" \
+        --after-snapshot-root-action=""
 }
 
 path_policy() {
