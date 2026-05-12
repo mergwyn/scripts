@@ -21,6 +21,7 @@ config_dir=${topdir}
 
 declare -a valid_v_store=( idrivee2 minio )
 declare -a valid_k_store=( idrivee2 minio )
+declare -a valid_ns=( default downloaders home-assistant media monitoring vpn )
 
 validate_type() {
   type=$1
