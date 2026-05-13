@@ -140,6 +140,7 @@ load_bws_s3() {
     log_debug "Disabling TLS for ${store} (${ENDPOINT})"
     TLS_FLAG="--disable-tls"
   fi
+  return 0
 }
 
 load_repo_password() {
