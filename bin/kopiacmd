@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-#TODO: fill out support for path_policy
-
 # shellcheck source=/dev/null
 for function in "$(dirname "$0")"/../functions/*.sh; do source "${function}"; done
 
@@ -11,240 +9,398 @@ export KOPIA_CHECK_FOR_UPDATES=false
 
 # --- Environment Setup ---
 case $(uname) in
-  Linux)  topdir=~/.config/kopia;;
-  Darwin) topdir="~/Library/Application Support/kopia";;
-  *)      log_error "Unknown OS"; exit 1;;
+  Linux)  topdir=~/.config/kopia ;;
+  Darwin) topdir="~/Library/Application Support/kopia" ;;
+  *)      log_error "Unknown OS"; exit 1 ;;
 esac
 config_dir=${topdir}
-[[ -d ${topdir} ]] || mkdir -p ${topdir}
+[[ -d ${topdir} ]] || mkdir -p "${topdir}"
 
+# --- Valid Store Definitions ---
+declare -a valid_v_store=( idrive minio )
+declare -a valid_k_store=( idrive minio )
 
-declare -a valid_v_store=( idrivee2 minio )
-declare -a valid_k_store=( idrivee2 minio )
-declare -a valid_ns=( default downloaders home-assistant media monitoring vpn )
+# --- Dynamic Namespace List ---
+get_valid_ns() {
+  kubectl get backuprepositories -A --no-headers \
+    -o custom-columns="NS:.spec.volumeNamespace" 2>/dev/null \
+    | sort -u
+}
 
+# --- Validation ---
+# Naming convention:
+#   kopia repos:  <store>-kopia          e.g. minio-kopia, idrive-kopia
+#   velero repos: <ns>-<store>-velero    e.g. home-assistant-minio-velero
 validate_type() {
-  type=$1
+  local type=$1
+
   case ${type} in
-    velero*)
-      local bucket=velero
-      local stem=${type#velero-}
-      local store=${stem%%-*}
-      local ns=${type#velero-*-}
-      if [[ " ${valid_v_store[*]} " =~ " ${store} " ]] ; then
-        log_debug "Got valid store ${store}"
-      else
-        log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_v_store[*]}'"
+    *-velero)
+      local stem=${type%-velero}        # strip -velero suffix
+      local store=${stem##*-}           # last component is store
+      local ns=${stem%-*}               # everything before store is ns
+      local valid_ns
+      mapfile -t valid_ns < <(get_valid_ns)
+
+      if [[ ! " ${valid_v_store[*]} " =~ " ${store} " ]]; then
+        log_error "Invalid store '${store}' in '${type}'. Valid stores: ${valid_v_store[*]}"
         return 1
       fi
-      if [[ " ${valid_ns[*]} " =~ " ${ns} " ]] ; then
-        log_debug "Got valid ns ${ns}"
-      else
-        log_error "Invalid namespace ${ns} in ${type}. Needs to be one of '${valid_ns[*]}'"
-        return 1
-      fi
-      ;;
-    kopia*)
-      store=${type#kopia-}
-      if [[ " ${valid_k_store[*]} " =~ " ${store} " ]] ; then
-        log_debug "Got valid store ${store}"
-      else
-        log_error "Invalid store ${store} in ${type}. Needs to be one of '${valid_k_store[*]}'"
+      if [[ ! " ${valid_ns[*]} " =~ " ${ns} " ]]; then
+        log_error "Invalid namespace '${ns}' in '${type}'. Valid namespaces: ${valid_ns[*]}"
         return 1
       fi
       ;;
-    kopia-foxtrot|filesystem|rclone)
+    *-kopia)
+      local store=${type%-kopia}        # strip -kopia suffix
+      if [[ ! " ${valid_k_store[*]} " =~ " ${store} " ]]; then
+        log_error "Invalid store '${store}' in '${type}'. Valid stores: ${valid_k_store[*]}"
+        return 1
+      fi
+      ;;
+    filesystem|rclone)
       ;;
     *)
-      log_error Unknown type ${type}
-      return 1;;
-    # TODO add other types
+      log_error "Unknown type '${type}'"
+      return 1
+      ;;
   esac
   return 0
 }
 
-usage1() {
-  cat <<EOF >&1
+# --- Usage ---
+usage() {
+  local kopia_repos velero_repos
+  kopia_repos=$(list_valid kopia | paste -sd' ')
+  velero_repos=$(list_valid velero 2>/dev/null | paste -sd' ' || echo "(kubectl unavailable)")
+
+  cat <<EOF >&2
 Usage: ${me} <command>
 
 Commands:
   repo
-    create repo_type
-    connect repo_type
-    list
-    valid
+    create repo_type         Create a new kopia-managed repo
+    connect repo_type        Connect to an existing repo
+    list                     List connected repo configs
+    valid [kopia|velero]     List valid repo_type values
+
   system
     install
     certs
+
   users
     add repo_type
-  policy
-    global repo_type
-    path snapname repo_type [repo_type...]
 
-A repo_type is one of
-a) filesystem rclone
-b) kopia-<store>
-   Valid stores are '${valid_k_store[*]}'
-c) velero-<store>-<ns>, where
-   Valid stores are '${valid_v_store[*]}'
-   Valid ns are '${valid_ns[*]}'
+  policy
+    global repo_type         Set global policy on a repo
+    path snapname repo_type  Set path policy (repos from /etc/default/kopia)
+
+  completion
+    generate                 Print completely YAML to stdout
+
+Valid repo_types:
+  filesystem | rclone
+  ${kopia_repos}
+  ${velero_repos}
+
+Use '${me} repo valid [kopia|velero]' for the full list.
 EOF
 }
 
+# --- Secret Helpers ---
 
-# Load BWS Token (suggested path for your roll-out)
+# Load BWS token
 [[ -f "/etc/kopia/.bws_env" ]] && source "/etc/kopia/.bws_env"
 [[ -z "${BWS_ACCESS_TOKEN}" ]] && { log_error "BWS_ACCESS_TOKEN not set"; exit 1; }
 
-# --- UUID Configuration ---
 declare -A STORE_UUIDS=(
-    [idrivee2]="31c6c57d-7a0d-4e3c-afaf-b1ec01031b4f"
-    [minio]="232cb3fe-cf1d-493b-b879-b1ec00fe24c5"
-    [repo-pw]="500f90e6-0977-40e9-a425-b42100fe869a"
+  [idrive]="31c6c57d-7a0d-4e3c-afaf-b1ec01031b4f"
+  [minio]="232cb3fe-cf1d-493b-b879-b1ec00fe24c5"
+  [repo-pw]="500f90e6-0977-40e9-a425-b42100fe869a"
 )
 
-# --- Secret Helper ---
 load_bws_s3() {
-    local store=$1
-    local uuid=${STORE_UUIDS[$store]}
-    [[ -z "$uuid" ]] && { log_error "No UUID for $store"; return 1; }
+  local store=$1
+  local uuid=${STORE_UUIDS[$store]}
+  [[ -z "$uuid" ]] && { log_error "No UUID configured for store '${store}'"; return 1; }
 
-    local raw
-    raw=$(bws secret get "$uuid" --output json | jq -r '.value')
+  local raw
+  raw=$(bws secret get "$uuid" --output json | jq -r '.value')
 
-    # Parses "KEY: VALUE" format from BWS into exports
-    while IFS= read -r line; do
-        [[ $line == *:* ]] || continue
-        # Extract key and value, trimming whitespace
-        local k=$(echo "${line%%:*}" | xargs)
-        local v=$(echo "${line#*:}" | xargs)
-        export "$k"="$v"
-    done <<< "$raw"
+  while IFS= read -r line; do
+    [[ $line == *:* ]] || continue
+    local k v
+    k=$(echo "${line%%:*}" | xargs)
+    v=$(echo "${line#*:}" | xargs)
+    export "$k"="$v"
+  done <<< "$raw"
 
-    # TLS logic: Strict check for minio or internal port 9000
-    TLS_FLAG=""
-    if [[ "$store" == "minio" ]] || [[ "$ENDPOINT" == *":9000"* ]]; then
-        log_debug "Disabling TLS for $store ($ENDPOINT)"
-        TLS_FLAG="--disable-tls"
-    fi
+  TLS_FLAG=""
+  if [[ "$store" == "minio" ]] || [[ "$ENDPOINT" == *":9000"* ]]; then
+    log_debug "Disabling TLS for ${store} (${ENDPOINT})"
+    TLS_FLAG="--disable-tls"
+  fi
 }
 
-# Load the password (the one Velero is also using)
-KOPIA_PASSWORD=$(bws secret get "${STORE_UUIDS[repo-pw]}" --output json | jq -r '.value')
+load_repo_password() {
+  KOPIA_PASSWORD=$(bws secret get "${STORE_UUIDS[repo-pw]}" --output json | jq -r '.value')
+  [[ -z "$KOPIA_PASSWORD" ]] && { log_error "Failed to load repo password"; return 1; }
+}
 
-# --- Main Repo Logic ---
+# --- Config File Path Helper ---
+config_file_for() {
+  echo "${config_dir}/$1.config"
+}
+
+# --- Repo Functions ---
 connect_repo() {
-    local type=$1
-    local bucket="kopia"
-    local prefix=""
+  local type=$1
+  local bucket="kopia"
+  local prefix=""
+  local store
 
-    if ! validate_type ${type} ; then
-      log_error "cannot connect, repo $type not supported"
-      exit 1
-    fi
+  validate_type "${type}" || exit 1
 
-    if [[ $type == velero-* ]]; then
-        local stem=${type#velero-}
-        local store=${stem%%-*}
-        local ns=${type#velero-*-}
-        bucket="velero"
-        prefix="kopia/${ns}/"
-    else
-        local store=${type#kopia-}
-    fi
+  if [[ $type == *-velero ]]; then
+    local stem=${type%-velero}
+    store=${stem##*-}
+    local ns=${stem%-*}
+    bucket="velero"
+    prefix="kopia/${ns}/"
+  else
+    store=${type%-kopia}
+  fi
 
-    load_bws_s3 "$store" || return 1
+  load_bws_s3 "$store" || return 1
+  load_repo_password || return 1
 
-    log_info "Connecting: ${type} -> ${ENDPOINT} [Bucket: ${bucket}]"
+  local cfg
+  cfg=$(config_file_for "${type}")
 
-    kopia repository connect s3 ${TLS_FLAG} \
-        --endpoint="${ENDPOINT}" \
-        --bucket="${bucket}" \
-        --prefix="${prefix}" \
-        --access-key="${ACCESS_KEY_ID}" \
-        --secret-access-key="${SECRET_ACCESS_KEY}" \
-        --password="${KOPIA_PASSWORD}" \
-        --config-file="${config_dir}/${type}.config" \
-        --enable-actions \
-        --log-level=warning \
-        --description="BWS Managed: ${type}"
+  log_info "Connecting: ${type} -> ${ENDPOINT} [bucket: ${bucket}, prefix: ${prefix:-/}]"
 
-    export KOPIA_CONFIG_PATH="${config_dir}/${type}.config"
-    log_notice "Use 'export KOPIA_CONFIG_PATH=${config_dir}/${type}.config' or '--config-file=${config_dir}/${type}.config' to continue using this repo"
+  kopia repository connect s3 ${TLS_FLAG} \
+    --endpoint="${ENDPOINT}" \
+    --bucket="${bucket}" \
+    --prefix="${prefix}" \
+    --access-key="${ACCESS_KEY_ID}" \
+    --secret-access-key="${SECRET_ACCESS_KEY}" \
+    --password="${KOPIA_PASSWORD}" \
+    --config-file="${cfg}" \
+    --enable-actions \
+    --log-level=warning \
+    --description="BWS Managed: ${type}"
+
+  export KOPIA_CONFIG_PATH="${cfg}"
+  log_notice "Connected. To use this repo:"
+  log_notice "  export KOPIA_CONFIG_PATH=${cfg}"
+  log_notice "  or pass --config-file=${cfg} to kopia commands"
 }
 
+create_repo() {
+  local type=$1
+  [[ $type == *-kopia ]] || { log_error "Velero repos are connect-only; create is not supported"; exit 1; }
+
+  local store=${type%-kopia}
+  load_bws_s3 "${store}" || return 1
+  load_repo_password || return 1
+
+  local cfg
+  cfg=$(config_file_for "${type}")
+
+  kopia repository create s3 ${TLS_FLAG} \
+    --endpoint="${ENDPOINT}" \
+    --bucket="kopia" \
+    --access-key="${ACCESS_KEY_ID}" \
+    --secret-access-key="${SECRET_ACCESS_KEY}" \
+    --password="${KOPIA_PASSWORD}" \
+    --config-file="${cfg}"
+}
+
+list_repos() {
+  ls "${config_dir}"/*.config 2>/dev/null \
+    | sed 's|.*/||; s/\.config$//' \
+    || log_warn "No repos found in ${config_dir}"
+}
+
+list_valid() {
+  local scope=${1:-}
+  case ${scope} in
+    velero)
+      for store in "${valid_v_store[@]}"; do
+        while IFS= read -r ns; do
+          echo "${ns}-${store}-velero"
+        done < <(get_valid_ns)
+      done
+      ;;
+    kopia)
+      for store in "${valid_k_store[@]}"; do
+        echo "${store}-kopia"
+      done
+      ;;
+    "")
+      list_valid kopia
+      list_valid velero
+      ;;
+    *)
+      log_error "Unknown scope '${scope}'. Use 'kopia' or 'velero'"
+      exit 1
+      ;;
+  esac
+}
+
+# --- Policy Functions ---
 global_policy() {
-    local type=$1
-    connect_repo "$type" || exit 1
+  local type=$1
+  connect_repo "$type" || exit 1
 
-    # Your original run-parts action hooks
-    local action_base="/bin/run-parts --report /etc/kopia"
-
-    log_info "Setting global policy for ${type}..."
-    kopia policy set --global \
-        --compression=zstd \
-        --keep-latest=0 --keep-hourly=24 --keep-daily=7 --keep-weekly=4 --keep-monthly=12 --keep-annual=0 \
-        --ignore-identical-snapshots=false --ignore-unknown-types=true \
-        --before-folder-action="" \
-        --after-folder-action="" \
-        --before-snapshot-root-action="" \
-        --after-snapshot-root-action=""
+  log_info "Setting global policy for ${type}..."
+  kopia policy set --global \
+    --compression=zstd \
+    --keep-latest=0 --keep-hourly=24 --keep-daily=7 --keep-weekly=4 --keep-monthly=12 --keep-annual=0 \
+    --ignore-identical-snapshots=false \
+    --ignore-unknown-types=true \
+    --before-folder-action="" \
+    --after-folder-action="" \
+    --before-snapshot-root-action="" \
+    --after-snapshot-root-action=""
 }
 
 path_policy() {
   local path=$1
-  shift 1
+  shift
+
+  [[ -f /etc/default/kopia ]] || { log_error "/etc/default/kopia not found"; exit 1; }
+  # shellcheck source=/dev/null
   source /etc/default/kopia
+
+  [[ -z "${REPOS}" ]] && { log_error "REPOS not set in /etc/default/kopia"; exit 1; }
+
   for type in ${REPOS}; do
     connect_repo "$type" || exit 1
-    log_info "Setting path policy for ${path} on ${type}..."
+    log_info "Setting path policy for '${path}' on ${type}..."
     kopia policy set "${path}" "$@" \
-      --config-file="${config_dir}/${type}.config"
+      --config-file="$(config_file_for "${type}")"
   done
 }
 
-# --- Command Switch ---
+# --- Completion Generation ---
+generate_completion() {
+  local cfg_list
+  cfg_list='$(ls ~/.config/kopia/*.config 2>/dev/null | sed -e '"'"'s:.*/::'"'"' -e '"'"'s/.config$//'"'"')'
+
+  local ns_list
+  ns_list='$(kopiacmd repo valid velero)'
+
+  cat <<EOF
+kopiacmd:
+  - --help
+  - --version
+  - repo
+  - system
+  - users
+  - policy
+  - completion
+
+kopiacmd repo:
+  - create
+  - connect
+  - list
+  - valid
+
+kopiacmd repo create:
+  - $(kopiacmd repo valid kopia)
+
+kopiacmd repo connect:
+  - ${cfg_list}
+
+kopiacmd repo valid:
+  - kopia
+  - velero
+
+kopiacmd repo valid velero:
+  - ${ns_list}
+
+kopiacmd repo valid kopia:
+  - $(list_valid kopia)
+
+kopiacmd system:
+  - install
+  - certs
+
+kopiacmd system install:
+  - ${cfg_list}
+
+kopiacmd system certs:
+  - ${cfg_list}
+
+kopiacmd users:
+  - add
+
+kopiacmd users add:
+  - ${cfg_list}
+
+kopiacmd policy:
+  - global
+  - path
+
+kopiacmd policy global:
+  - ${cfg_list}
+
+kopiacmd policy path:
+  - $(kopiacmd repo valid)
+
+kopiacmd completion:
+  - generate
+EOF
+}
+
+# --- Command Dispatch ---
 case ${cmd} in
   repo)
     sub=$2; type=$3
     case ${sub} in
       connect) connect_repo "$type" ;;
-      create)
-        [[ $type == kopia-* ]] || { log_error "Velero repos are connect-only"; exit 1; }
-        load_bws_s3 "${type#kopia-}"
-        kopia repository create s3 ${TLS_FLAG} --endpoint="${ENDPOINT}" --bucket="kopia" \
-            --access-key="${ACCESS_KEY_ID}" --secret-access-key="${SECRET_ACCESS_KEY}" \
-            --password="${KOPIA_PASSWORD}" --config-file="${config_dir}/${type}.config"
-        ;;
-      list) ls "${config_dir}"/*.config 2>/dev/null | sed 's/\.config$//' ;;
-      valid)
-    	case $1 in
-            velero)
-                for((i=0;i<${#valid_v_store[@]};i++)); do
-                    for ((j=0;j<${#valid_ns[@]};j++)) ;  do
-                        echo velero-${valid_v_store[i]}-${valid_ns[j]}
-                    done
-                done;;
-            kopia)
-                for((i=0;i<${#valid_k_store[@]};i++)); do
-                    echo kopia-${valid_k_store[i]}
-                done;;
-            esac
-    	;;
+      create)  create_repo "$type" ;;
+      list)    list_repos ;;
+      valid)   list_valid "$type" ;;
+      *)       usage; exit 1 ;;
     esac
     ;;
   policy)
     case $2 in
       global) global_policy "$3" ;;
       path)   path_policy "$3" "${@:4}" ;;
+      *)      usage; exit 1 ;;
     esac
     ;;
   system)
-    if [[ $2 == "certs" ]]; then
-       log_warn "Certs still require kubectl access to the cluster."
-       # Insert your original create_cert logic here if still needed
-    fi
+    case $2 in
+      certs)
+        log_warn "Certs still require kubectl access to the cluster."
+        ;;
+      install)
+        log_error "'system install' not yet implemented"
+        exit 1
+        ;;
+      *) usage; exit 1 ;;
+    esac
     ;;
-  *) usage1; exit 1 ;;
+  users)
+    case $2 in
+      add)
+        log_error "'users add' not yet implemented"
+        exit 1
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  completion)
+    case $2 in
+      generate) generate_completion ;;
+      *)        usage; exit 1 ;;
+    esac
+    ;;
+  --help|-h) usage ;;
+  *) usage; exit 1 ;;
 esac

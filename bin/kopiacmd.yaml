@@ -3,7 +3,6 @@ kopiacmd:
   - --version
   - repo
   - system
-  - install
   - users
   - policy
   - completion
@@ -13,35 +12,48 @@ kopiacmd repo:
   - connect
   - list
   - valid
+
 kopiacmd repo create:
-  - TODO
+  - $(kopiacmd repo valid kopia)
+
 kopiacmd repo connect:
-  - $(ls ~/.config/kopia/*.config | sed -e 's:.*/::' -e 's/.config$//')
+  - $(ls ~/.config/kopia/*.config 2>/dev/null | sed -e 's:.*/::' -e 's/.config$//')
+
 kopiacmd repo valid:
   - kopia
   - velero
-kopiacmd repo valid velero:
-  - $(kopiacmd repo valid velero)
+
 kopiacmd repo valid kopia:
   - $(kopiacmd repo valid kopia)
+
+kopiacmd repo valid velero:
+  - $(kopiacmd repo valid velero)
 
 kopiacmd system:
   - install
   - certs
+
 kopiacmd system install:
-  - $(ls ~/.config/kopia/*.config | sed -e 's:.*/::' -e 's/.config$//')
+  - $(ls ~/.config/kopia/*.config 2>/dev/null | sed -e 's:.*/::' -e 's/.config$//')
+
 kopiacmd system certs:
-  - $(ls ~/.config/kopia/*.config | sed -e 's:.*/::' -e 's/.config$//')
+  - $(ls ~/.config/kopia/*.config 2>/dev/null | sed -e 's:.*/::' -e 's/.config$//')
 
 kopiacmd users:
   - add
+
 kopiacmd users add:
-  - $(ls ~/.config/kopia/*.config | sed -e 's:.*/::' -e 's/.config$//')
+  - $(ls ~/.config/kopia/*.config 2>/dev/null | sed -e 's:.*/::' -e 's/.config$//')
 
 kopiacmd policy:
   - global
+  - path
+
 kopiacmd policy global:
-  - $(ls ~/.config/kopia/*.config | sed -e 's:.*/::' -e 's/.config$//')
+  - $(ls ~/.config/kopia/*.config 2>/dev/null | sed -e 's:.*/::' -e 's/.config$//')
+
+kopiacmd policy path:
+  - $(kopiacmd repo valid)
 
 kopiacmd completion:
-  - TODO
+  - generate
