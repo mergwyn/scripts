@@ -145,6 +145,7 @@ load_bws_s3() {
 load_repo_password() {
   KOPIA_PASSWORD=$(bws secret get "${STORE_UUIDS[repo-pw]}" --output json | jq -r '.value')
   [[ -z "$KOPIA_PASSWORD" ]] && { log_error "Failed to load repo password"; return 1; }
+  return 0
 }
 
 # --- Config File Path Helper ---
@@ -286,13 +287,15 @@ path_policy() {
 
 # --- Completion Generation ---
 generate_completion() {
+  command -v completely &>/dev/null || { log_error "completely not found in PATH"; exit 1; }
+
   local cfg_list
-  cfg_list='$(ls ~/.config/kopia/*.config 2>/dev/null | sed -e '"'"'s:.*/::'"'"' -e '"'"'s/.config$//'"'"')'
+  cfg_list='$(ls ~/.config/kopia/*.config 2>/dev/null | sed -e '\''s:.*/::'\''  -e '\''s/.config$//'\'')'
 
   local ns_list
   ns_list='$(kopiacmd repo valid velero)'
 
-  cat <<EOF
+  completely generate <(cat <<EOF
 kopiacmd:
   - --help
   - --version
@@ -353,6 +356,7 @@ kopiacmd policy path:
 kopiacmd completion:
   - generate
 EOF
+  )
 }
 
 # --- Command Dispatch ---
