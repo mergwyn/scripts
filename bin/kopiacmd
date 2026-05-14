@@ -140,7 +140,6 @@ load_bws_s3() {
     log_debug "Disabling TLS for ${store} (${ENDPOINT})"
     TLS_FLAG="--disable-tls"
   fi
-  return 0
 }
 
 load_repo_password() {
@@ -287,16 +286,23 @@ path_policy() {
 }
 
 # --- Completion Generation ---
+
+# Format multi-line command output as YAML list items
+yaml_list() {
+  while IFS= read -r item; do
+    [[ -z "$item" ]] && continue
+    echo "  - ${item}"
+  done
+}
+
 generate_completion() {
   command -v completely &>/dev/null || { log_error "completely not found in PATH"; exit 1; }
 
-  local cfg_list
-  cfg_list='$(ls ~/.config/kopia/*.config 2>/dev/null | sed -e '\''s:.*/::'\''  -e '\''s/.config$//'\'')'
+  # These are literal strings passed to completely for runtime evaluation
+  local cfg_list='$(ls ~/.config/kopia/*.config 2>/dev/null | sed -e '"'"'s:.*/::'"'"' -e '"'"'s/.config$//'"'"')'
+  local ns_list='$(kopiacmd repo valid velero)'
 
-  local ns_list
-  ns_list='$(kopiacmd repo valid velero)'
-
-  completely generate <(cat <<EOF
+  cat <<YAML | completely generate -
 kopiacmd:
   - --help
   - --version
@@ -313,7 +319,7 @@ kopiacmd repo:
   - valid
 
 kopiacmd repo create:
-  - $(kopiacmd repo valid kopia)
+$(list_valid kopia | yaml_list)
 
 kopiacmd repo connect:
   - ${cfg_list}
@@ -326,7 +332,7 @@ kopiacmd repo valid velero:
   - ${ns_list}
 
 kopiacmd repo valid kopia:
-  - $(list_valid kopia)
+$(list_valid kopia | yaml_list)
 
 kopiacmd system:
   - install
@@ -352,12 +358,11 @@ kopiacmd policy global:
   - ${cfg_list}
 
 kopiacmd policy path:
-  - $(kopiacmd repo valid)
+$(list_valid | yaml_list)
 
 kopiacmd completion:
   - generate
-EOF
-  )
+YAML
 }
 
 # --- Command Dispatch ---
