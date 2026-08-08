@@ -3,6 +3,9 @@
 set -o errexit
 set -o nounset
 
+# shellcheck source=/dev/null
+for function in "$(dirname "$0")"/../functions/*.sh; do source "${function}"; done
+
 # --- Configuration ---
 USB_MOUNT="/media/offsite"
 BACKUP_ROOT="${USB_MOUNT}/minio-backup"
@@ -13,13 +16,23 @@ LOG_FILE="/var/log/minio-backup-$(date +%Y%m%d).log"
 # MinIO connection details for your running cluster
 MINIO_ALIAS="localminio"
 MINIO_ENDPOINT="http://localhost:9000"
-# TODO get credentials dynamically
-MINIO_ACCESS_KEY="minioadmin"
-MINIO_SECRET_KEY="minioadmin"
+
+# Source BWS S3 helpers to load credentials
+source "$(dirname "$0")/../functions/bws_s3_helpers.sh"
+
+# Load MinIO credentials from BWS
+load_bws_s3 "minio" || { echo "ERROR: Failed to load MinIO credentials from BWS"; exit 1; }
+MINIO_ACCESS_KEY="${ACCESS_KEY_ID}"
+MINIO_SECRET_KEY="${SECRET_ACCESS_KEY}"
 
 # --- Helper Functions ---
-log() {
+log_script() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+}
+
+# Alias for backward compatibility
+log() {
+    log_script "$@"
 }
 
 check_usb() {
@@ -215,6 +228,10 @@ EOF
 
 # --- Main Script ---
 main() {
+    # Initialize log file
+    mkdir -p "$(dirname "$LOG_FILE")"
+    touch "$LOG_FILE"
+
     # Check if running as root (needed for USB mount operations)
     if [ "$EUID" -ne 0 ]; then
         echo "Please run as root"
