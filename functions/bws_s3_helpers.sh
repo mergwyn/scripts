@@ -29,7 +29,7 @@ load_bws_s3() {
     export "$k"="$v"
   done <<< "$raw"
 
-  TLS_FLAG=""
+  export TLS_FLAG=""
 }
 
 load_repo_password() {

@@ -15,19 +15,19 @@ load_bws_s3() {
     export "$k"="$v"
   done <<< "$raw"
 
-  TLS_FLAG=""
+  export TLS_FLAG=""
   if [[ "$store" == "minio" ]] || [[ "$ENDPOINT" == *":9000"* ]]; then
     log_debug "Disabling TLS for ${store} (${ENDPOINT})"
-    TLS_FLAG="--disable-tls"
+    export TLS_FLAG="--disable-tls"
   fi
 }
 
 load_repo_password() {
   KOPIA_PASSWORD=$(bws secret get "${STORE_UUIDS[repo-pw]}" --output json | jq -r '.value')
-  [[ -z "$KOPIA  PASSWORD" ]] && { log_error "Failed to load repo password"; return 1; }
+  [[ -z "$KOPIA_PASSWORD" ]] && { log_error "Failed to load repo password"; return 1; }
   return 0
 }
-
+# shellcheck disable=SC2154
 STORE_UUIDS=(
   [idrive]="31c6c57d-7a0d-4e3c-afaf-b1ec01031b4f"
   [minio]="232cb3fe-cf1d-493b-b879-b1ec00fe24c5"

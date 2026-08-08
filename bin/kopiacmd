@@ -9,8 +9,8 @@ export KOPIA_CHECK_FOR_UPDATES=false
 
 # --- Environment Setup ---
 case $(uname) in
-  Linux)  topdir=~/.config/kopia ;;
-  Darwin) topdir="~/Library/Application Support/kopia" ;;
+  Linux)  topdir="S{HOME}/.config/kopia" ;;
+  Darwin) topdir="${HOME}/Library/Application Support/kopia" ;;
   *)      log_error "Unknown OS"; exit 1 ;;
 esac
 config_dir=${topdir}
@@ -41,11 +41,12 @@ validate_type() {
       local ns=${stem%-*}               # everything before store is ns
       local valid_ns
       mapfile -t valid_ns < <(get_valid_ns)
-
+      # shellcheck disable=2076
       if [[ ! " ${valid_v_store[*]} " =~ " ${store} " ]]; then
         log_error "Invalid store '${store}' in '${type}'. Valid stores: ${valid_v_store[*]}"
         return 1
       fi
+      # shellcheck disable=2076
       if [[ ! " ${valid_ns[*]} " =~ " ${ns} " ]]; then
         log_error "Invalid namespace '${ns}' in '${type}'. Valid namespaces: ${valid_ns[*]}"
         return 1
@@ -53,6 +54,7 @@ validate_type() {
       ;;
     *-kopia)
       local store=${type%-kopia}        # strip -kopia suffix
+      # shellcheck disable=2076
       if [[ ! " ${valid_k_store[*]} " =~ " ${store} " ]]; then
         log_error "Invalid store '${store}' in '${type}'. Valid stores: ${valid_k_store[*]}"
         return 1

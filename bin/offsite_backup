@@ -32,6 +32,7 @@ check_usb() {
     fi
 
     # Check if USB has enough space (adjust threshold as needed)
+    # shellcheck disable=SC2155
     local available=$(df -BG "$USB_MOUNT" | awk 'NR==2 {print $4}' | sed 's/G//')
     local min_space=50  # Minimum 50GB free
     if [ "$available" -lt "$min_space" ]; then
@@ -75,6 +76,7 @@ do_backup() {
     log_info "Syncing bucket data to USB..."
 
     # Get list of buckets (skip internal buckets if desired)
+    # shellcheck disable=SC2155
     local buckets=$(mc ls "$MINIO_ALIAS" | awk '{print $5}')
     for bucket in $buckets; do
         # Skip .minio.sys and other system buckets
@@ -171,6 +173,7 @@ do_restore() {
 
     # Step 5: Verify restore
     log_info "Verifying restore..."
+    # shellcheck disable=SC2155
     local buckets=$(mc ls restored | awk '{print $5}')
     log_notice "Available buckets: $buckets"
 
