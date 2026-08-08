@@ -25,78 +25,68 @@ load_bws_s3 "minio" || { echo "ERROR: Failed to load MinIO credentials from BWS"
 MINIO_ACCESS_KEY="${ACCESS_KEY_ID}"
 MINIO_SECRET_KEY="${SECRET_ACCESS_KEY}"
 
-# --- Helper Functions ---
-log_script() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
-}
-
-# Alias for backward compatibility
-log() {
-    log_script "$@"
-}
-
 check_usb() {
     if [ ! -d "$USB_MOUNT" ]; then
-        log "ERROR: USB drive not mounted at $USB_MOUNT"
+        log_error "ERROR: USB drive not mounted at $USB_MOUNT"
         exit 1
     fi
-    
+
     # Check if USB has enough space (adjust threshold as needed)
     local available=$(df -BG "$USB_MOUNT" | awk 'NR==2 {print $4}' | sed 's/G//')
     local min_space=50  # Minimum 50GB free
     if [ "$available" -lt "$min_space" ]; then
-        log "WARNING: USB drive has only ${available}GB free (minimum ${min_space}GB recommended)"
+        log_warn "WARNING: USB drive has only ${available}GB free (minimum ${min_space}GB recommended)"
     fi
 }
 
 setup_minio_client() {
     if ! command -v mc &> /dev/null; then
-        log "Installing mc (MinIO Client)..."
+        log_notice "Installing mc (MinIO Client)..."
         wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
         chmod +x /usr/local/bin/mc
     fi
-    
+
     # Configure alias if not already set
     if ! mc alias list | grep -q "^${MINIO_ALIAS} "; then
-        log "Configuring mc alias for MinIO..."
+        log_notice "Configuring mc alias for MinIO..."
         mc alias set "$MINIO_ALIAS" "$MINIO_ENDPOINT" "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY"
     fi
 }
 
 # --- Backup Functions ---
 do_backup() {
-    log "=== Starting MinIO Backup ==="
-    
+    log_notice "=== Starting MinIO Backup ==="
+
     # Create backup directory structure
     mkdir -p "$MINIO_DATA_DIR"
     mkdir -p "$(dirname "$MINIO_IAM_BACKUP")"
-    
+
     # Step 1: Export IAM configuration
-    log "Exporting IAM configuration..."
+    log_info "Exporting IAM configuration..."
     mc admin cluster iam export "$MINIO_ALIAS" > "$MINIO_IAM_BACKUP"
     if [ $? -eq 0 ]; then
-        log "IAM configuration exported to: $MINIO_IAM_BACKUP"
+        log_notice "IAM configuration exported to: $MINIO_IAM_BACKUP"
     else
-        log "ERROR: Failed to export IAM configuration"
+        log_error  "ERROR: Failed to export IAM configuration"
         exit 1
     fi
-    
+
     # Step 2: Sync bucket data
-    log "Syncing bucket data to USB..."
-    
+    log_info "Syncing bucket data to USB..."
+
     # Get list of buckets (skip internal buckets if desired)
     local buckets=$(mc ls "$MINIO_ALIAS" | awk '{print $5}')
     for bucket in $buckets; do
         # Skip .minio.sys and other system buckets
         if [[ "$bucket" == ".minio.sys" ]] || [[ "$bucket" == *"internal"* ]]; then
-            log "Skipping system bucket: $bucket"
+            log_info "Skipping system bucket: $bucket"
             continue
         fi
-        
-        log "Syncing bucket: $bucket"
+
+        log_notice "Syncing bucket: $bucket"
         mc mirror --overwrite "${MINIO_ALIAS}/${bucket}" "${MINIO_DATA_DIR}/${bucket}/"
     done
-    
+
     # Step 3: Create metadata file with backup info
     cat > "${BACKUP_ROOT}/backup-info.txt" << EOF
 MinIO Backup Information
@@ -112,78 +102,78 @@ To restore:
 2. Import IAM config: mc admin cluster iam import NEW_ALIAS $MINIO_IAM_BACKUP
 3. Or use the integrated restore script: $0 restore
 EOF
-    
-    log "Backup completed successfully!"
-    log "Backup location: $BACKUP_ROOT"
-    log "IAM backup: $MINIO_IAM_BACKUP"
+
+    log_notice "Backup completed successfully!"
+    log_notice "Backup location: $BACKUP_ROOT"
+    log_notice "IAM backup: $MINIO_IAM_BACKUP"
 }
 
 # --- Restore Functions ---
 do_restore() {
-    log "=== Starting MinIO Restore Process ==="
-    
+    log_notice "=== Starting MinIO Restore Process ==="
+
     # Verify backup exists
     if [ ! -d "$MINIO_DATA_DIR" ]; then
-        log "ERROR: No backup data found at $MINIO_DATA_DIR"
-        log "Please ensure USB drive is mounted and backup exists"
+        log_error "ERROR: No backup data found at $MINIO_DATA_DIR"
+        log_error "Please ensure USB drive is mounted and backup exists"
         exit 1
     fi
-    
+
     if [ ! -f "$MINIO_IAM_BACKUP" ]; then
-        log "WARNING: IAM backup not found at $MINIO_IAM_BACKUP"
-        log "Will attempt restore without IAM configuration"
+        log_warn "WARNING: IAM backup not found at $MINIO_IAM_BACKUP"
+        log_warn "Will attempt restore without IAM configuration"
     fi
-    
+
     # Step 1: Check if MinIO is already running
     if pgrep -x "minio" > /dev/null; then
-        log "WARNING: MinIO appears to be running"
+        log_warn "WARNING: MinIO appears to be running"
         read -p "Continue with restore? This may interfere with running MinIO instance (y/N): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log "Restore cancelled"
+            log_notice "Restore cancelled"
             exit 0
         fi
     fi
-    
+
     # Step 2: Start temporary MinIO instance
-    log "Starting temporary MinIO instance using backup data..."
-    log "Data directory: $MINIO_DATA_DIR"
-    log "Console address: :9001"
-    
+    log_notice "Starting temporary MinIO instance using backup data..."
+    log_notice "Data directory: $MINIO_DATA_DIR"
+    log_notice "Console address: :9001"
+
     # We'll start MinIO in the background with a specific data directory
     export MINIO_ROOT_USER="$MINIO_ACCESS_KEY"
     export MINIO_ROOT_PASSWORD="$MINIO_SECRET_KEY"
-    
+
     nohup minio server "$MINIO_DATA_DIR" --console-address ":9001" > /tmp/minio-restore.log 2>&1 &
     MINIO_PID=$!
-    
-    log "MinIO started with PID: $MINIO_PID"
-    log "Waiting for MinIO to be ready..."
+
+    log_notice "MinIO started with PID: $MINIO_PID"
+    log_info "Waiting for MinIO to be ready..."
     sleep 10
-    
+
     # Step 3: Configure mc for the restored instance
-    log "Configuring mc for restored instance..."
+    log_notice "Configuring mc for restored instance..."
     mc alias set restored http://localhost:9000 "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY"
-    
+
     # Step 4: Import IAM configuration if available
     if [ -f "$MINIO_IAM_BACKUP" ]; then
-        log "Importing IAM configuration..."
+        log_info "Importing IAM configuration..."
         mc admin cluster iam import restored "$MINIO_IAM_BACKUP"
         if [ $? -eq 0 ]; then
-            log "IAM configuration imported successfully"
+            log_notice "IAM configuration imported successfully"
         else
-            log "ERROR: Failed to import IAM configuration"
-            log "You may need to manually configure users and policies"
+            log_error "ERROR: Failed to import IAM configuration"
+            log_error "You may need to manually configure users and policies"
         fi
     else
-        log "No IAM backup found - skipping import"
+        log_notice "No IAM backup found - skipping import"
     fi
-    
+
     # Step 5: Verify restore
-    log "Verifying restore..."
+    log_info "Verifying restore..."
     local buckets=$(mc ls restored | awk '{print $5}')
-    log "Available buckets: $buckets"
-    
+    log_notice "Available buckets: $buckets"
+
     # Step 6: Provide connection details
     cat > "${BACKUP_ROOT}/restore-details.txt" << EOF
 MinIO Restore Details
@@ -207,21 +197,21 @@ To make this instance permanent:
 1. Stop the temporary instance: kill $MINIO_PID
 2. Start MinIO normally: minio server $MINIO_DATA_DIR --console-address ":9001"
 
-WARNING: The MinIO server is running in the foreground. 
+WARNING: The MinIO server is running in the foreground.
 Do not close this terminal or the restore will stop.
 EOF
-    
-    log "=== Restore Process Complete ==="
-    log "MinIO is running with backup data"
-    log "Connection details saved to: ${BACKUP_ROOT}/restore-details.txt"
-    log ""
-    log "To use this restored instance:"
-    log "1. In another terminal, use: mc ls restored/"
-    log "2. For Velero/Kopia, configure endpoint: http://localhost:9000"
-    log "3. Stop instance when done: kill $MINIO_PID"
-    log ""
-    log "Press Ctrl+C to stop this instance when finished"
-    
+
+    log_notice "=== Restore Process Complete ==="
+    log_notice "MinIO is running with backup data"
+    log_notice "Connection details saved to: ${BACKUP_ROOT}/restore-details.txt"
+    log_notice ""
+    log_notice "To use this restored instance:"
+    log_notice "1. In another terminal, use: mc ls restored/"
+    log_notice "2. For Velero/Kopia, configure endpoint: http://localhost:9000"
+    log_notice "3. Stop instance when done: kill $MINIO_PID"
+    log_notice ""
+    log_notice "Press Ctrl+C to stop this instance when finished"
+
     # Keep the script running to keep MinIO alive
     wait $MINIO_PID
 }
@@ -237,7 +227,7 @@ main() {
         echo "Please run as root"
         exit 1
     fi
-    
+
     # Parse command line arguments
     case "${1:-backup}" in
         backup)
