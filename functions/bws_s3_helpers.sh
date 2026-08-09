@@ -29,7 +29,13 @@ load_bws_s3() {
     export "$k"="$v"
   done <<< "$raw"
 
-  export TLS_FLAG=""
+  # TODO remove TLS exception when enabled for minio
+  if [[ "$store" == "minio" ]] || [[ "$ENDPOINT" == *":9000"* ]]; then
+    log_debug "Disabling TLS for ${store} (${ENDPOINT})"
+    TLS_FLAG="--disable-tls"
+  else
+    export TLS_FLAG=""
+  fi
 }
 
 load_repo_password() {
