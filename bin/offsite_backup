@@ -18,7 +18,7 @@ MINIO_ALIAS="localminio"
 MINIO_ENDPOINT="http://localhost:9000"
 
 # Source BWS S3 helpers to load credentials
-source "$(dirname "$0")/../functions/bws_s3_helpers.sh"
+source "$(dirname "$0")/../functions/bws_s3_helpers.func"
 
 # Load MinIO credentials from BWS
 load_bws_s3 "minio" || { echo "ERROR: Failed to load MinIO credentials from BWS"; exit 1; }
