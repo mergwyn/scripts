@@ -9,8 +9,8 @@ export KOPIA_CHECK_FOR_UPDATES=false
 
 # --- Environment Setup ---
 case $(uname) in
-  Linux)  topdir=~/.config/kopia ;;
-  Darwin) topdir="~/Library/Application Support/kopia" ;;
+  Linux)  topdir="S{HOME}/.config/kopia" ;;
+  Darwin) topdir="${HOME}/Library/Application Support/kopia" ;;
   *)      log_error "Unknown OS"; exit 1 ;;
 esac
 config_dir=${topdir}
@@ -41,11 +41,12 @@ validate_type() {
       local ns=${stem%-*}               # everything before store is ns
       local valid_ns
       mapfile -t valid_ns < <(get_valid_ns)
-
+      # shellcheck disable=2076
       if [[ ! " ${valid_v_store[*]} " =~ " ${store} " ]]; then
         log_error "Invalid store '${store}' in '${type}'. Valid stores: ${valid_v_store[*]}"
         return 1
       fi
+      # shellcheck disable=2076
       if [[ ! " ${valid_ns[*]} " =~ " ${ns} " ]]; then
         log_error "Invalid namespace '${ns}' in '${type}'. Valid namespaces: ${valid_ns[*]}"
         return 1
@@ -53,6 +54,7 @@ validate_type() {
       ;;
     *-kopia)
       local store=${type%-kopia}        # strip -kopia suffix
+      # shellcheck disable=2076
       if [[ ! " ${valid_k_store[*]} " =~ " ${store} " ]]; then
         log_error "Invalid store '${store}' in '${type}'. Valid stores: ${valid_k_store[*]}"
         return 1
@@ -108,45 +110,7 @@ EOF
 }
 
 # --- Secret Helpers ---
-
-# Load BWS token
-[[ -f "/etc/kopia/.bws_env" ]] && source "/etc/kopia/.bws_env"
-[[ -z "${BWS_ACCESS_TOKEN}" ]] && { log_error "BWS_ACCESS_TOKEN not set"; exit 1; }
-
-declare -A STORE_UUIDS=(
-  [idrive]="31c6c57d-7a0d-4e3c-afaf-b1ec01031b4f"
-  [minio]="232cb3fe-cf1d-493b-b879-b1ec00fe24c5"
-  [repo-pw]="500f90e6-0977-40e9-a425-b42100fe869a"
-)
-
-load_bws_s3() {
-  local store=$1
-  local uuid=${STORE_UUIDS[$store]}
-  [[ -z "$uuid" ]] && { log_error "No UUID configured for store '${store}'"; return 1; }
-
-  local raw
-  raw=$(bws secret get "$uuid" --output json | jq -r '.value')
-
-  while IFS= read -r line; do
-    [[ $line == *:* ]] || continue
-    local k v
-    k=$(echo "${line%%:*}" | xargs)
-    v=$(echo "${line#*:}" | xargs)
-    export "$k"="$v"
-  done <<< "$raw"
-
-  TLS_FLAG=""
-  if [[ "$store" == "minio" ]] || [[ "$ENDPOINT" == *":9000"* ]]; then
-    log_debug "Disabling TLS for ${store} (${ENDPOINT})"
-    TLS_FLAG="--disable-tls"
-  fi
-}
-
-load_repo_password() {
-  KOPIA_PASSWORD=$(bws secret get "${STORE_UUIDS[repo-pw]}" --output json | jq -r '.value')
-  [[ -z "$KOPIA_PASSWORD" ]] && { log_error "Failed to load repo password"; return 1; }
-  return 0
-}
+source "$(dirname "$0")/../functions/bws_s3_helpers.sh"
 
 # --- Config File Path Helper ---
 config_file_for() {
