@@ -110,7 +110,7 @@ EOF
 }
 
 # --- Secret Helpers ---
-source "$(dirname "$0")/../functions/bws_s3_helpers.sh"
+source "$(dirname "$0")/../functions/bws_s3_helpers.func"
 
 # --- Config File Path Helper ---
 config_file_for() {
