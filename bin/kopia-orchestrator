@@ -2,37 +2,37 @@
 # Runs kopia-backup.service on each node strictly in sequence.
 # Node list: one hostname per line in $NODES_FILE (order = run order, '#' comments ok).
 set -u
- 
+
 NODES_FILE=${NODES_FILE:-/etc/kopia-orchestrator/nodes}
 SSH_KEY=${SSH_KEY:-/etc/kopia-orchestrator/id_ed25519}
 STATUS_DIR=${STATUS_DIR:-/var/lib/kopia-orchestrator}
 PER_NODE_TIMEOUT=${PER_NODE_TIMEOUT:-4h}
 TRIGGER_USER=${TRIGGER_USER:-kopia-trigger}
- 
+
 mkdir -p "$STATUS_DIR"
- 
+
 # Never run two orchestrators at once
 exec 9>"$STATUS_DIR/lock"
 flock -n 9 || { echo "already running, exiting"; exit 0; }
- 
+
 log() { printf '%s %s\n' "$(date -Is)" "$*"; }
- 
+
 failed=()
 ok=()
- 
-while read -r node; do
+
+while read -r node <&3; do
   [[ -z "$node" || "$node" == \#* ]] && continue
   log "START $node"
   start=$(date +%s)
- 
+
   # The remote side forces the command (see Puppet class), so none is passed here.
   timeout "$PER_NODE_TIMEOUT" ssh \
-    -i "$SSH_KEY" -o BatchMode=yes -o ConnectTimeout=15 \
+    -i "$SSH_KEY" -n -o BatchMode=yes -o ConnectTimeout=15 \
     -o ServerAliveInterval=30 -o ServerAliveCountMax=6 \
     -o StrictHostKeyChecking=yes \
     "${TRIGGER_USER}@${node}"
   rc=$?
- 
+
   dur=$(( $(date +%s) - start ))
   if [[ $rc -eq 0 ]]; then
     log "OK    $node (${dur}s)"
@@ -42,20 +42,20 @@ while read -r node; do
     log "FAIL  $node rc=$rc (${dur}s)"
     failed+=("$node")
   fi
-done < "$NODES_FILE"
- 
+done 3< "$NODES_FILE"
+
 # Overall heartbeat for monitoring: only touched if everything succeeded
 if [[ ${#failed[@]} -eq 0 ]]; then
   date +%s > "$STATUS_DIR/last_full_success"
   log "DONE all ${#ok[@]} nodes ok"
   exit 0
 fi
- 
+
 log "DONE with failures: ${failed[*]}"
 # Hook your notifier here (ntfy, mail, Alertmanager webhook, ...):
 # curl -fsS -d "kopia failures: ${failed[*]}" https://ntfy.example/backups
 exit 1
- 
+
 Claude finished the response
 #!/usr/bin/env bash
 # Runs kopia-backup.service on each node strictly in sequence.
