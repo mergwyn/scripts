@@ -23,8 +23,8 @@ for repo in ${REPOS} ; do
   IFS=, read -ra snaparray <<< "${SNAPS}"
   for snap in "${snaparray[@]}"; do
     log_info "Creating snapshot ${snap} in ${repo}"
-    # force-hash verifies 1% of files each run.
-    kopia snapshot create ${ARGS} "${snap}" --force-hash=1 2>&1 | grep -v 'unknown or unsupported entry type'
+    # force-hash verifies 5% of files each run.
+    kopia snapshot create ${ARGS} "${snap}" --force-hash=5 2>&1 | grep -v 'unknown or unsupported entry type'
   done
 
   unset KOPIA_CONFIG_PATH
